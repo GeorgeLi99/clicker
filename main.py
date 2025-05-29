@@ -529,11 +529,18 @@ def main():
     log("正在初始化Chrome浏览器...")
     driver = None
     options = webdriver.ChromeOptions()
+
+    # 优化Chrome启动参数
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--ignore-certificate-errors")
     options.add_argument("--ignore-ssl-errors")
+    options.add_argument("--disable-extensions")
     options.add_argument("--remote-debugging-port=9222")
+
+    # 设置用户代理，避免被检测为自动化工具
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     # 1. 尝试 Selenium Manager（推荐）
     try:
@@ -560,72 +567,149 @@ def main():
         input("按任意键退出...")
         return None
 
-    # 设置浏览器窗口大小
-    driver.maximize_window()
-
-    # 打开登录页面
-    log(f"正在打开登录页面: {LOGIN_URL}")
-    driver.get(LOGIN_URL)
-    time.sleep(3)  # 等待页面加载
-
-    # 完全手动登录
-    log("请在浏览器中手动输入学号和密码，然后点击登录按钮")
-    log("正在等待登录完成...")
-
-    # 检测登录跳转并执行点击
     try:
-        # 保存当前URL，用于检测页面是否跳转
-        start_url = driver.current_url
+        # 设置浏览器窗口大小
+        driver.maximize_window()
+        log("浏览器窗口已最大化")
 
-        # 等待URL变化，最多等待60秒
-        log("等待页面跳转...")
-        max_wait = 60
-        for i in range(max_wait):
+        # 设置页面加载超时
+        driver.set_page_load_timeout(30)
+        log("页面加载超时设置为30秒")
+
+        # 打开登录页面
+        log(f"正在打开登录页面: {LOGIN_URL}")
+
+        try:
+            driver.get(LOGIN_URL)
+            log("URL请求已发送，等待页面加载...")
+
+            # 等待页面基本加载
+            time.sleep(5)
+
+            # 检查页面是否正确加载
             current_url = driver.current_url
-            if current_url != start_url and "authserver" not in current_url:
-                log(f"检测到页面跳转: {current_url}")
-                break
-            time.sleep(1)
+            page_title = driver.title
+            log(f"当前页面URL: {current_url}")
+            log(f"页面标题: {page_title}")
 
-        if driver.current_url == start_url or "authserver" in driver.current_url:
-            log("登录超时，请确认是否成功登录")
-            return driver
+            # 检查页面内容
+            if "authserver.nju.edu.cn" in current_url:
+                log("✅ 成功访问南大认证服务器")
 
-        log("登录成功，已跳转到评价系统")
+                # 检查页面是否包含登录表单
+                try:
+                    # 等待登录表单出现
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "username"))
+                    )
+                    log("✅ 登录表单已加载")
+                except:
+                    log("⚠️ 未检测到标准登录表单，但页面可能仍然可用")
 
-        # 等待页面加载
-        time.sleep(3)
+            elif "ehallapp.nju.edu.cn" in current_url:
+                log("✅ 已直接进入评价系统（可能已登录）")
+            else:
+                log(f"⚠️ 页面跳转到了意外的URL: {current_url}")
+                log("这可能是网络问题或服务器维护，请检查网络连接")
 
-        # 查找并点击评价入口
-        log("查找评价入口...")
-        cards = driver.find_element(
-            By.CLASS_NAME, "pj-total-card.bh-clearfix")
-        elements = cards.find_elements(By.XPATH, "//*[@id=\"pjglTopCard\"]")
-        log(f"找到 {len(elements)} 个bh-clearfix元素:")
-        for element in elements:
-            log(element.text)
+        except Exception as load_err:
+            log(f"❌ 页面加载失败: {load_err}")
 
-        if elements:
-            # 直接点击第1个元素，因为它之前成功了
-            target_element = elements[0]  # 索引是第1个元素
-            log(f"直接点击第1个元素: {target_element.text}")
+            # 尝试简单的连通性测试
+            try:
+                log("尝试简单的连通性测试...")
+                driver.get("https://www.baidu.com")
+                time.sleep(3)
+                if "baidu.com" in driver.current_url:
+                    log("✅ 网络连接正常，问题可能是南大服务器")
+                    log("正在重新尝试访问南大登录页面...")
+                    driver.get(LOGIN_URL)
+                    time.sleep(5)
+                else:
+                    log("❌ 网络连接异常")
+            except Exception as test_err:
+                log(f"❌ 连通性测试失败: {test_err}")
 
-            # 使用JavaScript点击
-            driver.execute_script(
-                "arguments[0].scrollIntoView(true);", target_element)
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", target_element)
-            log("已点击评价入口")
-            time.sleep(1)  # 等待点击后页面加载
-        else:
-            log(f"元素数量只有 {len(elements)} 个")
-            log("请手动点击进入评价页面")
-            input("完成手动点击后按回车继续...")
-            time.sleep(1)  # 等待手动点击后页面加载
+        # 重新启用JavaScript（如果之前禁用了）
+        try:
+            driver.execute_script("console.log('JavaScript已启用');")
+            log("✅ JavaScript功能正常")
+        except:
+            log("⚠️ JavaScript可能被禁用")
 
-    except Exception as e:
-        log(f"出错: {e}")
-        log("请手动操作，程序将继续运行...")
+        # 完全手动登录
+        log("请在浏览器中手动输入学号和密码，然后点击登录按钮")
+        log("正在等待登录完成...")
+
+        # 检测登录跳转并执行点击
+        try:
+            # 保存当前URL，用于检测页面是否跳转
+            start_url = driver.current_url
+            log(f"登录前URL: {start_url}")
+
+            # 等待URL变化，最多等待60秒
+            log("等待页面跳转...")
+            max_wait = 60
+            for i in range(max_wait):
+                current_url = driver.current_url
+                if current_url != start_url and "authserver" not in current_url:
+                    log(f"检测到页面跳转: {current_url}")
+                    break
+                if i % 10 == 0:  # 每10秒显示一次等待状态
+                    log(f"等待登录中... ({i}/{max_wait}秒)")
+                time.sleep(1)
+
+            if driver.current_url == start_url or "authserver" in driver.current_url:
+                log("登录超时，请确认是否成功登录")
+                log("如果已经登录但程序未检测到，请按回车继续...")
+                input()
+
+            log("登录成功，已跳转到评价系统")
+
+            # 等待页面加载
+            time.sleep(3)
+
+            # 查找并点击评价入口
+            log("查找评价入口...")
+            try:
+                cards = driver.find_element(
+                    By.CLASS_NAME, "pj-total-card.bh-clearfix")
+                elements = cards.find_elements(
+                    By.XPATH, "//*[@id=\"pjglTopCard\"]")
+                log(f"找到 {len(elements)} 个评价入口元素:")
+                for element in elements:
+                    log(element.text)
+
+                if elements:
+                    # 直接点击第1个元素
+                    target_element = elements[0]
+                    log(f"点击评价入口: {target_element.text}")
+
+                    # 使用JavaScript点击
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView(true);", target_element)
+                    time.sleep(1)
+                    driver.execute_script(
+                        "arguments[0].click();", target_element)
+                    log("已点击评价入口")
+                    time.sleep(3)  # 增加等待时间
+                else:
+                    log("未找到评价入口，请手动点击进入评价页面")
+                    input("完成手动点击后按回车继续...")
+                    time.sleep(1)
+
+            except Exception as click_err:
+                log(f"自动点击评价入口失败: {click_err}")
+                log("请手动点击进入评价页面")
+                input("完成手动点击后按回车继续...")
+
+        except Exception as e:
+            log(f"登录检测过程出错: {e}")
+            log("请手动操作，程序将继续运行...")
+
+    except Exception as browser_err:
+        log(f"浏览器操作过程中出错: {browser_err}")
+        return driver
 
     try:
         # 首先评价所有教师

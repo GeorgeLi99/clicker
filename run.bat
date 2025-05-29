@@ -1,231 +1,182 @@
 @echo off
+setlocal EnableDelayedExpansion
+chcp 65001 >nul 2>&1
+
 echo ==========================================
 echo    教室评价表自动填写程序 - 一键启动脚本
 echo ==========================================
 echo.
 
+REM 基本环境检查函数
+goto :check_environment
+
+:check_environment
+echo [1/4] 正在检查运行环境...
+
 REM 检查Python是否已安装
-echo 正在检查Python环境...
-python --version > nul 2>&1
+python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python未安装，正在准备自动下载并安装...
-    
-    REM 创建临时目录用于下载安装程序
-    mkdir temp 2>nul
-    cd temp
-    
-    echo 正在下载Python安装程序...
-    REM 下载64位Python安装程序
-    powershell -Command "(New-Object System.Net.WebClient).DownloadFile('https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe', 'python_installer.exe')"
-    
-    if not exist python_installer.exe (
-        echo 下载Python安装程序失败！
-        echo 正在打开Python官方下载页面...
-        cd ..
-        rmdir /s /q temp 2>nul
-        start https://www.python.org/downloads/
-        echo 请手动安装Python 3.8或以上版本，安装时勾选"Add Python to PATH"选项
-        echo 安装完成后请重新运行此脚本
-        echo 按任意键退出...
-        pause
-        exit /b 1
-    )
-    
-    echo 正在安装Python...
-    echo 请在弹出的安装向导中点击"Install Now"，并确保勾选"Add Python to PATH"选项
-    start /wait python_installer.exe /quiet PrependPath=1
-    
-    cd ..
-    rmdir /s /q temp 2>nul
-    
-    echo Python安装完成，正在检查安装结果...
-    
-    REM 刷新环境变量
-    echo 刷新环境变量...
-    call refreshenv.cmd 2>nul
-    if %errorlevel% neq 0 (
-        REM 如果refreshenv.cmd不可用，尝试其他方法刷新环境变量
-        echo 使用PowerShell刷新环境变量...
-        powershell -Command "$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')"
-    )
-    
-    REM 等待Python环境就绪
-    timeout /t 10 /nobreak > nul
-    
-    REM 检查Python是否已成功安装
-    python --version > nul 2>&1
-    if %errorlevel% neq 0 (
-        echo Python安装似乎未成功完成，请手动安装...
-        start https://www.python.org/downloads/
-        echo 请安装Python 3.8或以上版本，安装时勾选"Add Python to PATH"选项
-        echo 安装完成后请重新运行此脚本
-        echo 按任意键退出...
-        pause
-        exit /b 1
-    )
-    
-    echo Python已成功安装！
-    
-    REM 重新启动脚本以确保环境变量生效
-    echo 正在重新启动脚本以确保环境变量生效...
-    echo 请等待...
-    timeout /t 3 /nobreak > nul
-    start cmd /c "%~f0"
-    exit /b 0
+    echo ❌ Python未安装或未添加到PATH
+    echo.
+    echo 请按照以下步骤安装Python：
+    echo 1. 访问 https://www.python.org/downloads/
+    echo 2. 下载Python 3.8或更高版本
+    echo 3. 安装时务必勾选 "Add Python to PATH" 选项
+    echo 4. 安装完成后重新运行此脚本
+    echo.
+    goto :error_exit
 )
 
-REM 验证Python版本
+REM 获取Python版本
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set pyver=%%i
-echo 检测到Python版本: %pyver%
+echo ✅ 检测到Python版本: %pyver%
 
-REM 检查是否需要创建虚拟环境
-if not exist venv (
-    echo 正在创建Python虚拟环境...
-    python -m venv venv
-    if %errorlevel% neq 0 (
-        echo 创建虚拟环境失败，尝试安装venv模块...
-        python -m pip install virtualenv --user
-        if %errorlevel% neq 0 (
-            echo 安装venv模块失败
-            echo 按任意键退出...
-            pause
-            exit /b 1
-        )
-        python -m virtualenv venv
-        if %errorlevel% neq 0 (
-            echo 创建虚拟环境仍然失败
-            echo 按任意键退出...
-            pause
-            exit /b 1
-        )
-    )
-    echo 虚拟环境创建成功
-) else (
-    echo 检测到已存在的虚拟环境
-)
-
-REM 激活虚拟环境
-echo 正在激活虚拟环境...
-call venv\Scripts\activate.bat
+REM 检查pip是否可用
+pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 激活虚拟环境失败，尝试其他方法...
-    if exist venv\Scripts\activate (
-        call venv\Scripts\activate
-    ) else (
-        echo 无法激活虚拟环境，将尝试在全局环境中继续
-    )
+    echo ❌ pip未找到，请重新安装Python并确保包含pip
+    goto :error_exit
 )
 
-REM 检查依赖是否已安装
-echo 正在检查并安装依赖...
-pip install selenium
+echo ✅ pip检查通过
+goto :check_files
 
-REM 检查requirements.txt是否存在，如果存在则安装其中的依赖
-if exist requirements.txt (
+:check_files
+echo [2/4] 正在检查必要文件...
+
+REM 检查main.py是否存在
+if not exist "main.py" (
+    echo ❌ main.py文件未找到
+    echo 请确保在正确的目录下运行此脚本
+    goto :error_exit
+)
+echo ✅ main.py文件存在
+
+REM 检查requirements.txt是否存在
+if not exist "requirements.txt" (
+    echo ⚠️  requirements.txt文件未找到，将手动安装基本依赖
+    goto :install_basic_deps
+)
+echo ✅ requirements.txt文件存在
+goto :create_config
+
+:install_basic_deps
+echo [3/4] 正在安装基本依赖...
+echo 安装selenium...
+pip install selenium --quiet
+if %errorlevel% neq 0 (
+    echo ❌ 安装selenium失败
+    goto :error_exit
+)
+
+echo 安装webdriver-manager...
+pip install webdriver-manager --quiet
+if %errorlevel% neq 0 (
+    echo ❌ 安装webdriver-manager失败
+    goto :error_exit
+)
+
+echo 安装python-dotenv...
+pip install python-dotenv --quiet
+if %errorlevel% neq 0 (
+    echo ❌ 安装python-dotenv失败
+    goto :error_exit
+)
+
+echo ✅ 基本依赖安装完成
+goto :create_config
+
+:create_config
+echo [3/4] 正在检查配置文件...
+
+REM 检查config.py是否存在，如果不存在则创建
+if not exist "config.py" (
+    echo 正在创建配置文件...
+    (
+        echo # 南京大学教室评价系统配置文件
+        echo.
+        echo # 登录页面URL
+        echo LOGIN_URL = "https://authserver.nju.edu.cn/authserver/login?service=https%%3A%%2F%%2Fehallapp.nju.edu.cn%%2Fjwapp%%2Fsys%%2Fwspjyyapp%%2F*default%%2Findex.do"
+        echo.
+        echo # 评价系统URL
+        echo WEB_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/wspjyyapp/*default/index.do"
+        echo.
+        echo # ChromeDriver设置（优先使用自动管理）
+        echo USE_AUTO_DRIVER = True
+        echo CHROME_DRIVER_PATH = "drivers/chromedriver.exe"
+    ) > config.py
+    echo ✅ 配置文件已创建
+) else (
+    echo ✅ 配置文件已存在
+)
+
+goto :install_dependencies
+
+:install_dependencies
+echo [4/4] 正在安装/检查依赖包...
+
+REM 如果存在requirements.txt，使用它安装依赖
+if exist "requirements.txt" (
     echo 从requirements.txt安装依赖...
-    pip install -r requirements.txt
-)
-
-REM 检查配置文件是否存在
-if not exist config.py (
-    echo 配置文件不存在，正在创建默认配置...
-    (
-        echo WEB_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/wspjyyapp/*default/index.do"
-        echo LOGIN_URL = "https://authserver.nju.edu.cn/authserver/login?service=https%%3A%%2F%%2Fehallapp.nju.edu.cn%%2Fjwapp%%2Fsys%%2Fwspjyyapp%%2F*default%%2Findex.do"
-        echo CHROME_DRIVER_PATH = "%LOCAL_CHROME_DRIVER_PATH_PY%"
-        echo USE_AUTO_DRIVER = %USE_AUTO_DRIVER_CONFIG%
-    ) > config.py
-    echo 已创建默认配置文件
-)
-
-REM 检查Chrome浏览器驱动
-echo 正在检查Chrome浏览器驱动...
-mkdir drivers 2>nul
-set LOCAL_CHROME_DRIVER_PATH_BAT=drivers\\chromedriver.exe
-set LOCAL_CHROME_DRIVER_PATH_PY=drivers/chromedriver.exe
-REM Default to True for USE_AUTO_DRIVER_CONFIG, will be set to False if local driver is successfully set up
-set USE_AUTO_DRIVER_CONFIG=True
-
-REM 尝试获取Chrome版本
-echo 正在获取本地Chrome浏览器版本...
-set CHROME_VERSION_FULL=
-for /f "tokens=* USEBACKQ" %%a in (`powershell -Command "try { (Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion } catch { try { (Get-Item 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion } catch { Write-Output '' } }"`) do set CHROME_VERSION_FULL=%%a
-
-if defined CHROME_VERSION_FULL (
-    echo 检测到Chrome完整版本: %CHROME_VERSION_FULL%
-    for /f "tokens=1 delims=." %%v in ("%CHROME_VERSION_FULL%") do set CHROME_MAJOR_VERSION=%%v
-    echo 检测到Chrome主版本: %CHROME_MAJOR_VERSION%
-
-    REM 尝试从新的 JSON 端点下载驱动
-    echo 正在尝试从官方JSON端点下载匹配 %CHROME_MAJOR_VERSION% 的ChromeDriver...
-    set DRIVER_DOWNLOAD_URL=
-    REM PowerShell命令获取下载URL (此命令较长，为一行)
-    for /f "tokens=*" %%u in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $chromeMajor = '%CHROME_MAJOR_VERSION%'; $knownVersionsUrl = 'https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json'; $versions = Invoke-RestMethod -Uri $knownVersionsUrl | Select-Object -ExpandProperty versions; $latestPatch = ($versions | Where-Object {$_.version -match "^$chromeMajor"} | Sort-Object -Property @{Expression={[System.Version]$_.version}} -Descending | Select-Object -First 1); if ($latestPatch) { $driverInfo = $latestPatch.downloads.chromedriver | Where-Object {$_.platform -eq 'win64'}; if ($driverInfo) { Write-Output $driverInfo.url } else { Write-Output '' } } else { Write-Output '' } } catch { Write-Output '' } "') do set DRIVER_DOWNLOAD_URL=%%u
-
-    if defined DRIVER_DOWNLOAD_URL (
-        echo ChromeDriver下载链接: %DRIVER_DOWNLOAD_URL%
-        echo 下载中...
-        powershell -Command "(New-Object System.Net.WebClient).DownloadFile('%DRIVER_DOWNLOAD_URL%', 'drivers\\chromedriver_temp.zip')"
-        if exist drivers\\chromedriver_temp.zip (
-            echo 下载完成，解压中...
-            powershell -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; try { [System.IO.Compression.ZipFile]::ExtractToDirectory('drivers\\chromedriver_temp.zip', 'drivers_temp_extract') } catch { Write-Error $_; exit 1 } "
-            REM 在解压后的文件夹中查找chromedriver.exe，可能在子目录中
-            if exist drivers_temp_extract\\chromedriver-win64\\chromedriver.exe (
-                move /Y drivers_temp_extract\\chromedriver-win64\\chromedriver.exe "%LOCAL_CHROME_DRIVER_PATH_BAT%" > nul
-            ) else if exist drivers_temp_extract\\chromedriver.exe (
-                move /Y drivers_temp_extract\\chromedriver.exe "%LOCAL_CHROME_DRIVER_PATH_BAT%" > nul
-            )
-            rmdir /s /q drivers_temp_extract 2>nul
-            del drivers\\chromedriver_temp.zip 2>nul
-            if exist "%LOCAL_CHROME_DRIVER_PATH_BAT%" (
-                echo ChromeDriver已成功下载并放置到 %LOCAL_CHROME_DRIVER_PATH_BAT%
-                set USE_AUTO_DRIVER_CONFIG=False
-            ) else (
-                echo 解压或移动ChromeDriver失败，将依赖webdriver-manager.
-            )
-        ) else (
-            echo 通过JSON端点下载ChromeDriver失败，将依赖webdriver-manager.
-        )
-    ) else (
-        echo 未能从JSON端点找到匹配 %CHROME_MAJOR_VERSION% 的win64驱动下载链接，将依赖webdriver-manager.
+    pip install -r requirements.txt --quiet
+    if %errorlevel% neq 0 (
+        echo ⚠️  从requirements.txt安装依赖时出现问题，尝试单独安装
+        goto :install_basic_deps
     )
-) else (
-    echo 未能检测到本地Chrome浏览器版本，将依赖webdriver-manager.
+    echo ✅ 依赖包安装完成
 )
 
-REM 更新或创建config.py
-echo 正在配置config.py...
-if exist config.py (
-    REM 如果config.py存在，检查是否需要更新
-    powershell -Command "$path = 'config.py'; $content = Get-Content $path -Raw; $driverPathLine = 'CHROME_DRIVER_PATH = \"%LOCAL_CHROME_DRIVER_PATH_PY%\"'; $autoDriverLine = 'USE_AUTO_DRIVER = %USE_AUTO_DRIVER_CONFIG%'; if ($content -notmatch 'CHROME_DRIVER_PATH') { Add-Content $path -Value $driverPathLine } else { $content = $content -replace 'CHROME_DRIVER_PATH = .*', $driverPathLine }; if ($content -notmatch 'USE_AUTO_DRIVER') { Add-Content $path -Value $autoDriverLine } else { $content = $content -replace 'USE_AUTO_DRIVER = .*', $autoDriverLine }; $content | Set-Content $path "
-) else (
-    echo 创建默认配置文件...
-    (
-        echo WEB_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/wspjyyapp/*default/index.do"
-        echo LOGIN_URL = "https://authserver.nju.edu.cn/authserver/login?service=https%%3A%%2F%%2Fehallapp.nju.edu.cn%%2Fjwapp%%2Fsys%%2Fwspjyyapp%%2F*default%%2Findex.do"
-        echo CHROME_DRIVER_PATH = "%LOCAL_CHROME_DRIVER_PATH_PY%"
-        echo USE_AUTO_DRIVER = %USE_AUTO_DRIVER_CONFIG%
-    ) > config.py
-)
-
-REM 清理可能存在的旧测试文件
-del test_driver.py 2>nul
-del test_local_driver.py 2>nul
-del download_driver.py 2>nul
-del driver_path.txt 2>nul
+REM 创建日志目录
+if not exist "logs" mkdir logs
 
 echo.
 echo ==========================================
-echo            准备工作已完成
-echo        开始运行教室评价自动填写程序
+echo            环境检查完成
+echo        正在启动教室评价自动填写程序
 echo ==========================================
 echo.
 
-REM 启动主程序
+goto :run_program
+
+:run_program
+REM 运行主程序，并捕获错误
+echo 正在启动程序...
+echo.
+
 python main.py
+set EXIT_CODE=%errorlevel%
 
-REM 完成后暂停
 echo.
-echo 程序已执行完毕，请按任意键退出...
-pause
-exit /b 0 
+if %EXIT_CODE% equ 0 (
+    echo ✅ 程序正常结束
+) else (
+    echo ❌ 程序执行时出现错误 (退出码: %EXIT_CODE%^)
+    echo.
+    echo 可能的解决方案：
+    echo 1. 检查网络连接是否正常
+    echo 2. 确认Chrome浏览器已安装并更新到最新版本
+    echo 3. 检查是否有杀毒软件阻止程序运行
+    echo 4. 尝试以管理员身份运行此脚本
+)
+
+goto :normal_exit
+
+:error_exit
+echo.
+echo ❌ 环境检查失败，程序无法运行
+echo.
+echo 故障排除建议：
+echo 1. 确保Python 3.8+已正确安装并添加到PATH
+echo 2. 确保网络连接正常，能够下载Python包
+echo 3. 尝试以管理员身份运行此脚本
+echo 4. 如果问题持续，请联系技术支持
+echo.
+echo 按任意键退出...
+pause >nul
+exit /b 1
+
+:normal_exit
+echo.
+echo 按任意键退出...
+pause >nul
+exit /b %EXIT_CODE% 

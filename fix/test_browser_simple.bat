@@ -3,14 +3,70 @@ setlocal EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 
 echo ==========================================
-echo        Browser Connection Test Tool
+echo        浏览器连接测试工具
 echo ==========================================
 echo.
 
-echo Testing browser connection...
+echo 正在测试浏览器连接...
 echo.
 
-python -c "
+REM 首先检查Python环境
+set "PYTHON_CMD="
+
+REM 方法1: 直接检查python命令
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=python"
+    goto :python_found
+)
+
+REM 方法2: 尝试python3命令
+python3 --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=python3"
+    goto :python_found
+)
+
+REM 方法3: 检查常见的Python安装路径
+echo 🔍 在PATH中未找到Python，正在检查常见安装路径...
+
+for /d %%i in ("%USERPROFILE%\AppData\Local\Programs\Python\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        echo ✅ 在 %%i 找到Python
+        goto :python_found
+    )
+)
+
+for /d %%i in ("C:\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        echo ✅ 在 %%i 找到Python
+        goto :python_found
+    )
+)
+
+for /d %%i in ("C:\Program Files\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        echo ✅ 在 %%i 找到Python
+        goto :python_found
+    )
+)
+
+REM 如果都没找到，显示错误信息
+echo ❌ 未找到Python安装
+echo.
+echo 请先安装Python后再运行此工具
+echo 访问 https://www.python.org/downloads/ 下载Python
+echo.
+goto :exit_with_error
+
+:python_found
+echo ✅ 找到Python: %PYTHON_CMD%
+echo.
+
+"%PYTHON_CMD%" -c "
 import sys
 try:
     from selenium import webdriver
@@ -18,31 +74,31 @@ try:
     from webdriver_manager.chrome import ChromeDriverManager
     import time
 
-    print('=== Browser Connection Test Start ===')
+    print('=== 浏览器连接测试开始 ===')
     print()
 
-    # Test 1: Basic browser launch
-    print('1. Testing basic Chrome launch...')
+    # 测试1: 基本浏览器启动
+    print('1. 测试Chrome浏览器启动...')
     try:
         options = webdriver.ChromeOptions()
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         driver = webdriver.Chrome(options=options)
-        print('✅ Chrome browser launched successfully')
+        print('✅ Chrome浏览器启动成功')
         
-        # Test Baidu
-        print('2. Testing network connection (Baidu)...')
+        # 测试百度
+        print('2. 测试网络连接(百度)...')
         driver.get('https://www.baidu.com')
         time.sleep(3)
         if 'baidu' in driver.current_url and len(driver.page_source) > 1000:
-            print('✅ Network connection normal, page content loaded successfully')
+            print('✅ 网络连接正常，页面内容加载成功')
         else:
-            print('❌ Page load abnormal')
-            print(f'Current URL: {driver.current_url}')
-            print(f'Page source length: {len(driver.page_source)}')
+            print('❌ 页面加载异常')
+            print(f'当前URL: {driver.current_url}')
+            print(f'页面源码长度: {len(driver.page_source)}')
         
-        # Test NJU login page
-        print('3. Testing NJU login page...')
+        # 测试南大登录页面
+        print('3. 测试南大登录页面...')
         login_url = 'https://authserver.nju.edu.cn/authserver/login?service=https%3A%2F%2Fehallapp.nju.edu.cn%2Fjwapp%2Fsys%2Fwspjyyapp%2F*default%2Findex.do'
         driver.get(login_url)
         time.sleep(5)
@@ -51,55 +107,64 @@ try:
         page_title = driver.title
         page_length = len(driver.page_source)
         
-        print(f'   Current URL: {current_url}')
-        print(f'   Page Title: {page_title}')
-        print(f'   Page Content Length: {page_length}')
+        print(f'   当前URL: {current_url}')
+        print(f'   页面标题: {page_title}')
+        print(f'   页面内容长度: {page_length}')
         
         if 'authserver.nju.edu.cn' in current_url and page_length > 1000:
-            print('✅ NJU login page accessed normally')
+            print('✅ 南大登录页面访问正常')
             
-            # Check key elements
+            # 检查关键元素
             try:
-                username_element = driver.find_element_by_id('username') # Note: find_element_by_id is deprecated
-                print('✅ Username input field detected')
+                from selenium.webdriver.common.by import By
+                username_element = driver.find_element(By.ID, 'username')
+                print('✅ 检测到用户名输入框')
             except:
-                print('⚠️ Username input field not detected')
+                print('⚠️ 未检测到用户名输入框')
                 
         elif page_length < 100:
-            print('❌ Page content empty or load failed')
-            print('Possible reasons:')
-            print('  - Network connection issue')
-            print('  - Chrome driver version mismatch')
-            print('  - Firewall blocking access')
+            print('❌ 页面内容为空或加载失败')
+            print('可能的原因：')
+            print('  - 网络连接问题')
+            print('  - Chrome驱动版本不匹配')
+            print('  - 防火墙阻止访问')
         else:
-            print(f'⚠️ Page redirection abnormal: {current_url}')
+            print(f'⚠️ 页面跳转异常: {current_url}')
         
         driver.quit()
-        print('✅ Browser closed')
+        print('✅ 浏览器已关闭')
         
     except Exception as e:
-        print(f'❌ Browser test failed: {e}')
+        print(f'❌ 浏览器测试失败: {e}')
         try:
             driver.quit()
         except:
             pass
     
     print()
-    print('=== Test Complete ===')
+    print('=== 测试完成 ===')
     
 except ImportError as ie:
-    print(f'❌ Failed to import module: {ie}')
-    print('Please ensure selenium and webdriver-manager are installed.')
+    print(f'❌ 导入模块失败: {ie}')
+    print('请确保selenium和webdriver-manager已安装')
+    print('可以运行: pip install selenium webdriver-manager')
 except Exception as e:
-    print(f'❌ Error during test process: {e}')
+    print(f'❌ 测试过程中出错: {e}')
 "
 
+:exit_with_pause
 echo.
-echo Test complete!
-echo If it shows "Page content empty or load failed", please try:
-echo 1. Run fix.bat and select option 2 to clean ChromeDriver cache.
-echo 2. Ensure your network connection is normal.
-echo 3. Try running as an administrator.
+echo 测试完成！
+echo 如果显示"页面内容为空或加载失败"，请尝试：
+echo 1. 运行fix.bat并选择选项2清理ChromeDriver缓存
+echo 2. 确保网络连接正常
+echo 3. 尝试以管理员身份运行
 echo.
-echo Press any key to exit...
+echo 按任意键退出...
 PAUSE
+exit /b 0
+
+:exit_with_error
+echo 按任意键退出...
+PAUSE
+exit /b 1

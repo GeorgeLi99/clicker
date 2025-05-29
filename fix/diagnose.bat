@@ -19,35 +19,107 @@ echo.
 echo 当前目录: %cd%
 echo.
 
-REM 检查Python安装
+REM 全面检查Python安装
 echo ════ Python环境检查 ════
+set "PYTHON_CMD="
+set "PIP_CMD="
+set "PYTHON_FOUND=0"
+
+REM 方法1: 直接检查python命令
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    echo ✅ Python已安装
+    set "PYTHON_CMD=python"
+    set "PIP_CMD=pip"
+    set "PYTHON_FOUND=1"
+    echo ✅ Python已安装（通过PATH）
     python --version
     echo Python路径:
     where python 2>nul
     echo.
-    
-    REM 检查pip
-    pip --version >nul 2>&1
-    if %errorlevel% equ 0 (
-        echo ✅ pip可用
-        pip --version
-    ) else (
-        echo ❌ pip不可用
+    goto :check_pip
+)
+
+REM 方法2: 尝试python3命令
+python3 --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=python3"
+    set "PIP_CMD=pip3"
+    set "PYTHON_FOUND=1"
+    echo ✅ Python已安装（通过python3命令）
+    python3 --version
+    echo Python路径:
+    where python3 2>nul
+    echo.
+    goto :check_pip
+)
+
+REM 方法3: 检查常见的Python安装路径
+echo 🔍 在PATH中未找到Python，正在检查常见安装路径...
+
+for /d %%i in ("%USERPROFILE%\AppData\Local\Programs\Python\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        set "PIP_CMD=%%i\Scripts\pip.exe"
+        set "PYTHON_FOUND=1"
+        echo ✅ 在 %%i 找到Python
+        "%%i\python.exe" --version
+        echo.
+        goto :check_pip
     )
-) else (
+)
+
+for /d %%i in ("C:\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        set "PIP_CMD=%%i\Scripts\pip.exe"
+        set "PYTHON_FOUND=1"
+        echo ✅ 在 %%i 找到Python
+        "%%i\python.exe" --version
+        echo.
+        goto :check_pip
+    )
+)
+
+for /d %%i in ("C:\Program Files\Python*") do (
+    if exist "%%i\python.exe" (
+        set "PYTHON_CMD=%%i\python.exe"
+        set "PIP_CMD=%%i\Scripts\pip.exe"
+        set "PYTHON_FOUND=1"
+        echo ✅ 在 %%i 找到Python
+        "%%i\python.exe" --version
+        echo.
+        goto :check_pip
+    )
+)
+
+REM 如果都没找到
+if %PYTHON_FOUND% equ 0 (
     echo ❌ Python未安装或未添加到PATH
     echo 请安装Python 3.8+并确保添加到PATH
+    echo 下载地址: https://www.python.org/downloads/
+    echo 安装时务必勾选 "Add Python to PATH"
+    echo.
+    goto :check_chrome
+)
+
+:check_pip
+REM 检查pip
+"%PIP_CMD%" --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo ✅ pip可用
+    "%PIP_CMD%" --version
+) else (
+    echo ❌ pip不可用
+    echo 请重新安装Python确保包含pip
 )
 echo.
 
 REM 检查Chrome浏览器
+:check_chrome
 echo ════ Chrome浏览器检查 ════
 if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
     echo ✅ Chrome已安装 (64位)
-    powershell -Command "try { (Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion } catch { 'Unable to get version' }"
+    powershell -Command "try { (Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion } catch { 'Unable to get version' }" 2>nul
 ) else if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
     echo ✅ Chrome已安装 (32位)
     powershell -Command "try { (Get-Item 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe').VersionInfo.FileVersion } catch { 'Unable to get version' }"

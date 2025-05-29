@@ -2,8 +2,26 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import time
+import os
 from config import LOGIN_URL, WEB_URL
+
+# 创建日志目录
+os.makedirs('logs', exist_ok=True)
+
+# 设置日志文件
+log_filename = f"logs/clicker_{time.strftime('%Y%m%d')}.log"
+
+
+def log(message):
+    """记录日志到文件和控制台"""
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    log_message = f"[{timestamp}] {message}"
+    print(log_message)
+    with open(log_filename, 'a', encoding='utf-8') as f:
+        f.write(log_message + '\n')
 
 
 class Evaluator:
@@ -510,13 +528,29 @@ class TAEvaluator(Evaluator):
 
 
 def main():
-    driver = webdriver.Chrome()
+    # 使用webdriver_manager自动下载并配置最新的Chrome驱动
+    log("正在初始化Chrome浏览器...")
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service)
+        log("Chrome浏览器初始化成功")
+    except Exception as e:
+        log(f"Chrome浏览器初始化失败: {e}")
+        log("请确保已安装Chrome浏览器，并且网络连接正常")
+        input("按任意键退出...")
+        return None
+
+    # 设置浏览器窗口大小
+    driver.maximize_window()
+
+    # 打开登录页面
+    log(f"正在打开登录页面: {LOGIN_URL}")
     driver.get(LOGIN_URL)
     time.sleep(3)  # 等待页面加载
 
     # 完全手动登录
-    print("请在浏览器中手动输入学号和密码，然后点击登录按钮")
-    print("正在等待登录完成...")
+    log("请在浏览器中手动输入学号和密码，然后点击登录按钮")
+    log("正在等待登录完成...")
 
     # 检测登录跳转并执行点击
     try:
@@ -524,71 +558,72 @@ def main():
         start_url = driver.current_url
 
         # 等待URL变化，最多等待60秒
-        print("等待页面跳转...")
+        log("等待页面跳转...")
         max_wait = 60
         for i in range(max_wait):
             current_url = driver.current_url
             if current_url != start_url and "authserver" not in current_url:
-                print(f"检测到页面跳转: {current_url}")
+                log(f"检测到页面跳转: {current_url}")
                 break
             time.sleep(1)
 
         if driver.current_url == start_url or "authserver" in driver.current_url:
-            print("登录超时，请确认是否成功登录")
+            log("登录超时，请确认是否成功登录")
             return driver
 
-        print("登录成功，已跳转到评价系统")
+        log("登录成功，已跳转到评价系统")
 
         # 等待页面加载
         time.sleep(3)
 
         # 查找并点击评价入口
+        log("查找评价入口...")
         cards = driver.find_element(
             By.CLASS_NAME, "pj-total-card.bh-clearfix")
         elements = cards.find_elements(By.XPATH, "//*[@id=\"pjglTopCard\"]")
-        print(f"找到 {len(elements)} 个bh-clearfix元素:")
+        log(f"找到 {len(elements)} 个bh-clearfix元素:")
         for element in elements:
-            print(element.text)
+            log(element.text)
 
         if elements:
             # 直接点击第1个元素，因为它之前成功了
             target_element = elements[0]  # 索引是第1个元素
-            print(f"直接点击第1个元素: {target_element.text}")
+            log(f"直接点击第1个元素: {target_element.text}")
 
             # 使用JavaScript点击
             driver.execute_script(
                 "arguments[0].scrollIntoView(true);", target_element)
             time.sleep(1)
             driver.execute_script("arguments[0].click();", target_element)
-            print("已点击评价入口")
+            log("已点击评价入口")
             time.sleep(1)  # 等待点击后页面加载
         else:
-            print(f"元素数量只有 {len(elements)} 个")
-            print("请手动点击进入评价页面")
+            log(f"元素数量只有 {len(elements)} 个")
+            log("请手动点击进入评价页面")
             input("完成手动点击后按回车继续...")
             time.sleep(1)  # 等待手动点击后页面加载
 
     except Exception as e:
-        print(f"出错: {e}")
-        print("请手动操作，程序将继续运行...")
+        log(f"出错: {e}")
+        log("请手动操作，程序将继续运行...")
 
     try:
         # 首先评价所有教师
-        print("-" * 50)
-        print("开始评价所有教师...")
-        print("-" * 50)
+        log("-" * 50)
+        log("开始评价所有教师...")
+        log("-" * 50)
         teacher_evaluator = TeacherEvaluator(driver)
         teacher_evaluator.evaluate_all_teachers()
 
         # 然后评价所有助教
-        print("-" * 50)
-        print("所有课程教师评价完成，开始评价助教...")
-        print("-" * 50)
+        log("-" * 50)
+        log("所有课程教师评价完成，开始评价助教...")
+        log("-" * 50)
         ta_evaluator = TAEvaluator(driver)
         ta_evaluator.evaluate_all_tas()
 
     except Exception as e:
-        print(f"处理评价过程中出错: {e}")
+        log(f"处理评价过程中出错: {e}")
 
     # 返回driver对象，方便后续操作
     return driver
@@ -596,16 +631,20 @@ def main():
 
 if __name__ == "__main__":
     try:
+        log("=" * 60)
+        log("南京大学教室评价表自动填写程序 - 开始运行")
+        log("=" * 60)
         driver = main()
 
         # 在这里可以添加后续操作
-        print("程序执行完毕，可以关闭浏览器退出...")
+        log("程序执行完毕，可以关闭浏览器退出...")
         input()
     except Exception as e:
-        print(f"程序执行出错: {e}")
+        log(f"程序执行出错: {e}")
         input("可以关闭浏览器退出...")
     finally:
         # 确保driver已初始化且存在才尝试关闭
         if 'driver' in locals() and driver:
             driver.quit()
-            print("浏览器已关闭")
+            log("浏览器已关闭")
+        log("程序已退出")

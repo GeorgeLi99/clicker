@@ -3,11 +3,11 @@ setlocal EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 
 echo ==========================================
-echo        浏览器连接测试工具
+echo        Browser Connection Test Tool
 echo ==========================================
 echo.
 
-echo 正在测试浏览器连接...
+echo Testing browser connection...
 echo.
 
 python -c "
@@ -18,31 +18,31 @@ try:
     from webdriver_manager.chrome import ChromeDriverManager
     import time
 
-    print('=== 浏览器连接测试开始 ===')
+    print('=== Browser Connection Test Start ===')
     print()
 
-    # 测试1：基础浏览器启动
-    print('1. 测试基础Chrome启动...')
+    # Test 1: Basic browser launch
+    print('1. Testing basic Chrome launch...')
     try:
         options = webdriver.ChromeOptions()
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         driver = webdriver.Chrome(options=options)
-        print('✅ Chrome浏览器启动成功')
+        print('✅ Chrome browser launched successfully')
         
-        # 测试百度
-        print('2. 测试网络连接（百度）...')
+        # Test Baidu
+        print('2. Testing network connection (Baidu)...')
         driver.get('https://www.baidu.com')
         time.sleep(3)
         if 'baidu' in driver.current_url and len(driver.page_source) > 1000:
-            print('✅ 网络连接正常，页面内容加载成功')
+            print('✅ Network connection normal, page content loaded successfully')
         else:
-            print('❌ 页面加载异常')
-            print(f'当前URL: {driver.current_url}')
-            print(f'页面源码长度: {len(driver.page_source)}')
+            print('❌ Page load abnormal')
+            print(f'Current URL: {driver.current_url}')
+            print(f'Page source length: {len(driver.page_source)}')
         
-        # 测试南大登录页面
-        print('3. 测试南大登录页面...')
+        # Test NJU login page
+        print('3. Testing NJU login page...')
         login_url = 'https://authserver.nju.edu.cn/authserver/login?service=https%3A%2F%2Fehallapp.nju.edu.cn%2Fjwapp%2Fsys%2Fwspjyyapp%2F*default%2Findex.do'
         driver.get(login_url)
         time.sleep(5)
@@ -51,55 +51,55 @@ try:
         page_title = driver.title
         page_length = len(driver.page_source)
         
-        print(f'   当前URL: {current_url}')
-        print(f'   页面标题: {page_title}')
-        print(f'   页面内容长度: {page_length}')
+        print(f'   Current URL: {current_url}')
+        print(f'   Page Title: {page_title}')
+        print(f'   Page Content Length: {page_length}')
         
         if 'authserver.nju.edu.cn' in current_url and page_length > 1000:
-            print('✅ 南大登录页面访问正常')
+            print('✅ NJU login page accessed normally')
             
-            # 检查关键元素
+            # Check key elements
             try:
-                username_element = driver.find_element_by_id('username')
-                print('✅ 检测到用户名输入框')
+                username_element = driver.find_element_by_id('username') # Note: find_element_by_id is deprecated
+                print('✅ Username input field detected')
             except:
-                print('⚠️ 未检测到用户名输入框')
+                print('⚠️ Username input field not detected')
                 
         elif page_length < 100:
-            print('❌ 页面内容为空或加载失败')
-            print('可能原因：')
-            print('  - 网络连接问题')
-            print('  - Chrome驱动版本不匹配')
-            print('  - 防火墙阻止访问')
+            print('❌ Page content empty or load failed')
+            print('Possible reasons:')
+            print('  - Network connection issue')
+            print('  - Chrome driver version mismatch')
+            print('  - Firewall blocking access')
         else:
-            print(f'⚠️ 页面跳转异常: {current_url}')
+            print(f'⚠️ Page redirection abnormal: {current_url}')
         
         driver.quit()
-        print('✅ 浏览器已关闭')
+        print('✅ Browser closed')
         
     except Exception as e:
-        print(f'❌ 浏览器测试失败: {e}')
+        print(f'❌ Browser test failed: {e}')
         try:
             driver.quit()
         except:
             pass
     
     print()
-    print('=== 测试完成 ===')
+    print('=== Test Complete ===')
     
 except ImportError as ie:
-    print(f'❌ 导入模块失败: {ie}')
-    print('请确保已安装selenium和webdriver-manager')
+    print(f'❌ Failed to import module: {ie}')
+    print('Please ensure selenium and webdriver-manager are installed.')
 except Exception as e:
-    print(f'❌ 测试过程出错: {e}')
+    print(f'❌ Error during test process: {e}')
 "
 
 echo.
-echo 测试完成！
-echo 如果上面显示 "页面内容为空或加载失败"，请尝试：
-echo 1. 运行 fix.bat 选择选项 2 清理ChromeDriver
-echo 2. 确保网络连接正常
-echo 3. 尝试以管理员身份运行
+echo Test complete!
+echo If it shows "Page content empty or load failed", please try:
+echo 1. Run fix.bat and select option 2 to clean ChromeDriver cache.
+echo 2. Ensure your network connection is normal.
+echo 3. Try running as an administrator.
 echo.
-echo 按任意键退出...
+echo Press any key to exit...
 PAUSE

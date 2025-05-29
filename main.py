@@ -31,6 +31,26 @@ os.makedirs('logs', exist_ok=True)
 log_filename = f"logs/clicker_{time.strftime('%Y%m%d')}.log"
 
 
+def is_exe_environment():
+    """检查是否在exe环境中运行"""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def safe_input(prompt="", timeout=30):
+    """安全的输入函数，在exe环境中自动继续"""
+    if is_exe_environment():
+        log(f"{prompt} (exe环境中自动继续，等待{timeout}秒)")
+        time.sleep(timeout)
+        return ""
+    else:
+        try:
+            return input(prompt)
+        except:
+            log(f"{prompt} (输入失败，自动继续)")
+            time.sleep(timeout)
+            return ""
+
+
 def log(message):
     """记录日志到文件和控制台"""
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -38,6 +58,189 @@ def log(message):
     print(log_message)
     with open(log_filename, 'a', encoding='utf-8') as f:
         f.write(log_message + '\n')
+
+
+def navigate_to_evaluation_from_ehall(driver):
+    """
+    从服务大厅导航到评教界面
+
+    Args:
+        driver: WebDriver实例
+
+    Returns:
+        bool: 是否成功导航到评教界面
+
+    TODO: 请根据实际的服务大厅页面结构完成以下功能：
+    1. 识别并点击评教相关的卡片或链接
+    2. 处理可能的页面跳转
+    3. 确认是否成功进入评教系统
+    """
+    log("-" * 50)
+    log("开始从服务大厅导航到评教界面...")
+    log("-" * 50)
+
+    try:
+        # 等待服务大厅页面加载
+        log("等待服务大厅页面加载...")
+        time.sleep(3)
+
+        # 获取当前页面信息
+        current_url = driver.current_url
+        page_title = driver.title
+        log(f"当前页面URL: {current_url}")
+        log(f"页面标题: {page_title}")
+
+        # TODO: 在这里实现具体的导航逻辑
+        log("🔍 正在寻找评教入口...")
+
+        # 示例代码框架 - 请根据实际页面修改
+        try:
+            # 方法1：通过文本查找评教相关链接
+            log("尝试通过文本查找评教入口...")
+
+            # 可能的评教关键词
+            keywords = ["评教", "教学评价", "课程评价", "教师评价", "学生评教"]
+            evaluation_element = None
+
+            for keyword in keywords:
+                try:
+                    # 尝试通过XPath查找包含关键词的元素
+                    elements = driver.find_elements(
+                        By.XPATH, f"//*[contains(text(), '{keyword}')]")
+                    if elements:
+                        log(f"找到包含'{keyword}'的元素 {len(elements)} 个")
+                        for i, elem in enumerate(elements):
+                            try:
+                                elem_text = elem.text.strip()
+                                if elem_text:
+                                    log(f"  元素{i+1}: {elem_text}")
+                            except:
+                                log(f"  元素{i+1}: [无法获取文本]")
+
+                        # 选择第一个可点击的元素
+                        for elem in elements:
+                            if elem.is_displayed() and elem.is_enabled():
+                                evaluation_element = elem
+                                log(f"选择元素: {elem.text}")
+                                break
+
+                        if evaluation_element:
+                            break
+
+                except Exception as e:
+                    log(f"查找'{keyword}'时出错: {e}")
+                    continue
+
+            # 如果找到评教元素，尝试点击
+            if evaluation_element:
+                log("找到评教入口，准备点击...")
+
+                # 滚动到元素位置
+                driver.execute_script(
+                    "arguments[0].scrollIntoView(true);", evaluation_element)
+                time.sleep(1)
+
+                # 点击元素
+                driver.execute_script(
+                    "arguments[0].click();", evaluation_element)
+                log("已点击评教入口")
+
+                # 等待页面跳转
+                time.sleep(5)
+
+                # 检查是否成功跳转到评教页面
+                new_url = driver.current_url
+                new_title = driver.title
+                log(f"跳转后URL: {new_url}")
+                log(f"跳转后标题: {new_title}")
+
+                # TODO: 添加评教页面的识别逻辑
+                # 例如检查URL中是否包含评教相关关键词，或页面是否包含特定元素
+                if "pj" in new_url.lower() or "evaluation" in new_url.lower() or "评价" in new_title:
+                    log("✅ 成功导航到评教界面")
+                    return True
+                else:
+                    log("⚠️ 页面跳转了，但可能不是评教界面")
+                    # 继续尝试其他方法或让用户手动操作
+
+            else:
+                log("❌ 未找到评教入口")
+
+        except Exception as method1_err:
+            log(f"方法1失败: {method1_err}")
+
+        # 方法2：通过CSS选择器查找
+        log("尝试通过CSS选择器查找评教入口...")
+        try:
+            # TODO: 根据实际页面结构修改选择器
+            selectors = [
+                ".card-title",  # 卡片标题
+                ".service-item",  # 服务项目
+                ".app-item",  # 应用项目
+                "a[href*='pj']",  # 包含pj的链接
+                "a[href*='evaluation']",  # 包含evaluation的链接
+            ]
+
+            for selector in selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    log(f"选择器 '{selector}' 找到 {len(elements)} 个元素")
+
+                    for elem in elements:
+                        try:
+                            elem_text = elem.text.strip()
+                            if any(keyword in elem_text for keyword in keywords):
+                                log(f"找到疑似评教元素: {elem_text}")
+                                # TODO: 在这里实现点击逻辑
+                                break
+                        except:
+                            continue
+
+                except Exception as e:
+                    log(f"选择器 '{selector}' 查找失败: {e}")
+                    continue
+
+        except Exception as method2_err:
+            log(f"方法2失败: {method2_err}")
+
+        # 如果自动查找失败，提供手动操作提示
+        log("⚠️ 自动查找评教入口失败")
+        log("请手动在服务大厅页面中点击评教相关的入口")
+        log("通常评教入口的名称可能是：")
+        log("- 教学评价")
+        log("- 课程评价")
+        log("- 学生评教")
+        log("- 教师评价")
+        log("等等...")
+
+        # 等待用户手动操作
+        safe_input("请手动点击评教入口，完成后按回车继续...")
+
+        # 检查是否进入了评教页面
+        final_url = driver.current_url
+        final_title = driver.title
+        log(f"操作后URL: {final_url}")
+        log(f"操作后标题: {final_title}")
+
+        # TODO: 添加更精确的评教页面识别逻辑
+        if final_url != current_url:
+            log("✅ 检测到页面变化，假设已进入评教界面")
+            return True
+        else:
+            log("⚠️ 页面未发生变化，可能仍在服务大厅")
+            return False
+
+    except Exception as e:
+        log(f"导航过程中出错: {e}")
+        log("请手动操作进入评教界面")
+        safe_input("手动操作完成后按回车继续...")
+        return True  # 假设用户已手动完成操作
+
+    # 备注：请根据实际的服务大厅页面结构完善以上逻辑
+    # 主要需要修改的部分：
+    # 1. 评教入口的准确定位方法（XPath、CSS选择器等）
+    # 2. 评教页面的识别逻辑
+    # 3. 处理可能的中间跳转页面
 
 
 class Evaluator:
@@ -578,7 +781,7 @@ def main():
 
     if driver is None:
         log("未能成功初始化Chrome驱动，程序退出。请检查驱动版本或手动配置CHROME_DRIVER_PATH。")
-        input("按任意键退出...")
+        safe_input("按任意键退出...")
         return None
 
     try:
@@ -641,7 +844,7 @@ def main():
                 log("3. 手动获取最新的评价系统URL")
                 log("")
                 log("程序将继续运行，但可能无法正常评价...")
-                input("按回车键继续，或关闭程序窗口退出...")
+                safe_input("按回车键继续，或关闭程序窗口退出...")
 
         except Exception as load_err:
             log(f"❌ 页面加载失败: {load_err}")
@@ -693,7 +896,7 @@ def main():
             if driver.current_url == start_url or "authserver" in driver.current_url:
                 log("登录超时，请确认是否成功登录")
                 log("如果已经登录但程序未检测到，请按回车继续...")
-                input()
+                safe_input()
 
             log("登录成功，已跳转到评价系统")
 
@@ -730,7 +933,7 @@ def main():
                     log("3. 手动获取最新的评价系统URL")
                     log("")
                     log("是否继续运行程序？(可能无法正常评价)")
-                    choice = input("输入 y 继续，或按回车退出: ")
+                    choice = safe_input("输入 y 继续，或按回车退出: ")
                     if choice.lower() != 'y':
                         log("用户选择退出程序")
                         return driver
@@ -738,39 +941,14 @@ def main():
             except Exception as check_err:
                 log(f"检查页面状态时出错: {check_err}")
 
-            # 查找并点击评价入口
-            log("查找评价入口...")
-            try:
-                cards = driver.find_element(
-                    By.CLASS_NAME, "pj-total-card.bh-clearfix")
-                elements = cards.find_elements(
-                    By.XPATH, "//*[@id=\"pjglTopCard\"]")
-                log(f"找到 {len(elements)} 个评价入口元素:")
-                for element in elements:
-                    log(element.text)
+            # 从服务大厅导航到评教界面
+            log("开始从服务大厅导航到评教界面...")
+            navigation_success = navigate_to_evaluation_from_ehall(driver)
 
-                if elements:
-                    # 直接点击第1个元素
-                    target_element = elements[0]
-                    log(f"点击评价入口: {target_element.text}")
-
-                    # 使用JavaScript点击
-                    driver.execute_script(
-                        "arguments[0].scrollIntoView(true);", target_element)
-                    time.sleep(1)
-                    driver.execute_script(
-                        "arguments[0].click();", target_element)
-                    log("已点击评价入口")
-                    time.sleep(3)  # 增加等待时间
-                else:
-                    log("未找到评价入口，请手动点击进入评价页面")
-                    input("完成手动点击后按回车继续...")
-                    time.sleep(1)
-
-            except Exception as click_err:
-                log(f"自动点击评价入口失败: {click_err}")
-                log("请手动点击进入评价页面")
-                input("完成手动点击后按回车继续...")
+            if not navigation_success:
+                log("❌ 导航到评教界面失败")
+                log("程序将退出，请检查服务大厅页面或手动进入评教界面")
+                return driver
 
         except Exception as e:
             log(f"登录检测过程出错: {e}")
@@ -811,10 +989,10 @@ if __name__ == "__main__":
 
         # 在这里可以添加后续操作
         log("程序执行完毕，可以关闭浏览器退出...")
-        input()
+        safe_input()
     except Exception as e:
         log(f"程序执行出错: {e}")
-        input("可以关闭浏览器退出...")
+        safe_input("可以关闭浏览器退出...")
     finally:
         # 确保driver已初始化且存在才尝试关闭
         if 'driver' in locals() and driver:

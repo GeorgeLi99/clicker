@@ -15,6 +15,7 @@ echo [3] 重新创建配置文件
 echo [4] 清理日志和临时文件
 echo [5] 修复Python环境变量
 echo [6] 全面重置（谨慎使用）
+echo [7] 一键快速修复（推荐）
 echo [0] 退出
 echo.
 
@@ -26,6 +27,7 @@ if "%choice%"=="3" goto :fix_config
 if "%choice%"=="4" goto :cleanup
 if "%choice%"=="5" goto :fix_python_path
 if "%choice%"=="6" goto :full_reset
+if "%choice%"=="7" goto :quick_fix
 if "%choice%"=="0" goto :exit
 goto :invalid_choice
 
@@ -132,6 +134,63 @@ pip cache purge 2>nul
 pip uninstall selenium webdriver-manager python-dotenv -y 2>nul
 
 echo ✅ 全面重置完成，请重新运行 run.bat
+goto :done
+
+:quick_fix
+echo ════ 一键快速修复 ════
+echo 正在执行一键快速修复...
+echo.
+echo 这将自动执行以下操作：
+echo - 清理所有缓存
+echo - 重新安装依赖包
+echo - 更新配置文件
+echo - 验证环境
+echo.
+
+echo 开始修复...
+echo.
+
+echo [1/4] 清理缓存...
+rmdir /s /q "%USERPROFILE%\.wdm" 2>nul
+rmdir /s /q drivers 2>nul
+rmdir /s /q __pycache__ 2>nul
+rmdir /s /q logs 2>nul
+mkdir drivers 2>nul
+mkdir logs 2>nul
+echo ✅ 缓存清理完成
+
+echo [2/4] 重新安装依赖...
+pip cache purge 2>nul
+pip uninstall selenium webdriver-manager python-dotenv -y 2>nul
+pip install selenium webdriver-manager python-dotenv --quiet
+if %errorlevel% equ 0 (
+    echo ✅ 依赖安装成功
+) else (
+    echo ❌ 依赖安装失败
+)
+
+echo [3/4] 更新配置文件...
+(
+    echo # 南京大学教室评价系统配置文件
+    echo.
+    echo # 登录页面URL
+    echo LOGIN_URL = "https://authserver.nju.edu.cn/authserver/login?service=https%%3A%%2F%%2Fehallapp.nju.edu.cn%%2Fjwapp%%2Fsys%%2Fwspjyyapp%%2F*default%%2Findex.do"
+    echo.
+    echo # 评价系统URL
+    echo WEB_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/wspjyyapp/*default/index.do"
+    echo.
+    echo # ChromeDriver设置
+    echo USE_AUTO_DRIVER = True
+    echo CHROME_DRIVER_PATH = "drivers/chromedriver.exe"
+) > config.py
+echo ✅ 配置文件已更新
+
+echo [4/4] 验证环境...
+python -c "import selenium; print('✅ selenium正常')" 2>nul || echo ❌ selenium异常
+echo ✅ 一键修复完成
+
+echo.
+echo 修复完成，建议现在运行 run.bat 测试程序
 goto :done
 
 :invalid_choice

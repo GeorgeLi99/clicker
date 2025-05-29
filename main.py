@@ -612,6 +612,23 @@ def main():
                 log(f"⚠️ 页面跳转到了意外的URL: {current_url}")
                 log("这可能是网络问题或服务器维护，请检查网络连接")
 
+            # 检查是否出现403错误
+            if "403" in page_title or "Forbidden" in page_title or "无权限" in driver.page_source:
+                log("❌ 检测到403权限错误")
+                log("403错误可能的原因：")
+                log("1. 评价系统未开放或已关闭")
+                log("2. 当前账号没有评价权限")
+                log("3. URL包含过期的时效性参数")
+                log("4. 不在评价时间窗口内")
+                log("")
+                log("建议解决方案：")
+                log("1. 运行 fix_403.bat 进行专项修复")
+                log("2. 检查教务处通知确认评价开放时间")
+                log("3. 手动获取最新的评价系统URL")
+                log("")
+                log("程序将继续运行，但可能无法正常评价...")
+                input("按回车键继续，或关闭程序窗口退出...")
+
         except Exception as load_err:
             log(f"❌ 页面加载失败: {load_err}")
 
@@ -668,6 +685,44 @@ def main():
 
             # 等待页面加载
             time.sleep(3)
+
+            # 检查登录后是否出现403错误
+            try:
+                current_page_title = driver.title
+                current_page_source = driver.page_source
+                current_page_url = driver.current_url
+
+                log(f"登录后页面信息：")
+                log(f"  URL: {current_page_url}")
+                log(f"  标题: {current_page_title}")
+
+                # 检查403错误
+                if ("403" in current_page_title or
+                    "Forbidden" in current_page_title or
+                    "无权限" in current_page_source or
+                        "403" in current_page_source):
+
+                    log("❌ 检测到403权限错误")
+                    log("")
+                    log("403错误可能的原因：")
+                    log("1. 评价系统未开放或已关闭")
+                    log("2. 当前账号没有评价权限")
+                    log("3. URL包含过期的时效性参数")
+                    log("4. 不在评价时间窗口内")
+                    log("")
+                    log("建议解决方案：")
+                    log("1. 双击运行 fix_403.bat 进行专项修复")
+                    log("2. 检查教务处通知确认评价开放时间")
+                    log("3. 手动获取最新的评价系统URL")
+                    log("")
+                    log("是否继续运行程序？(可能无法正常评价)")
+                    choice = input("输入 y 继续，或按回车退出: ")
+                    if choice.lower() != 'y':
+                        log("用户选择退出程序")
+                        return driver
+
+            except Exception as check_err:
+                log(f"检查页面状态时出错: {check_err}")
 
             # 查找并点击评价入口
             log("查找评价入口...")

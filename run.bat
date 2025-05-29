@@ -143,7 +143,13 @@ REM 运行主程序，并捕获错误
 echo 正在启动程序...
 echo.
 
-python main.py
+REM 设置日志文件名，包含日期和时间戳
+set "CURRENT_DATETIME=%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
+set "LOG_FILE=logs\\run_log_%CURRENT_DATETIME%.log"
+echo 日志将记录在: %LOG_FILE%
+echo.
+
+python main.py > "%LOG_FILE%" 2>&1
 set EXIT_CODE=%errorlevel%
 
 echo.
@@ -151,6 +157,7 @@ if %EXIT_CODE% equ 0 (
     echo ✅ 程序正常结束
 ) else (
     echo ❌ 程序执行时出现错误 (退出码: %EXIT_CODE%^)
+    echo    请查看日志文件 %LOG_FILE% 获取详细错误信息。
     echo.
     echo 可能的解决方案：
     echo 1. 检查网络连接是否正常
@@ -177,6 +184,7 @@ exit /b 1
 
 :normal_exit
 echo.
+echo 程序输出已记录到 %LOG_FILE%
 echo 按任意键退出...
-pause >nul
+PAUSE
 exit /b %EXIT_CODE% 

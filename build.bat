@@ -18,4 +18,4 @@ python build.py
 echo.
 echo 如果打包成功，可执行文件将位于 dist 目录下
 echo 按任意键退出...
-pause >nul 
+PAUSE

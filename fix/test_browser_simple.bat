@@ -102,4 +102,4 @@ echo 2. 确保网络连接正常
 echo 3. 尝试以管理员身份运行
 echo.
 echo 按任意键退出...
-pause >nul 
+PAUSE

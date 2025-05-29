@@ -280,5 +280,5 @@ goto :exit
 :exit
 echo.
 echo 按任意键退出...
-pause >nul
+PAUSE
 exit /b 0 

@@ -185,4 +185,4 @@ echo 3. 确保具有足够的系统权限
 echo 4. 考虑临时关闭杀毒软件再试
 echo.
 echo 按任意键退出...
-pause >nul 
+PAUSE

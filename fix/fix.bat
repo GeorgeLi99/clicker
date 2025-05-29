@@ -195,7 +195,7 @@ goto :done
 
 :invalid_choice
 echo ❌ 无效选项，请重新选择
-pause
+PAUSE
 cls
 goto :start
 
@@ -207,5 +207,5 @@ goto :exit
 :exit
 echo.
 echo 按任意键退出...
-pause >nul
+PAUSE
 exit /b 0 

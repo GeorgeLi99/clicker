@@ -1,6 +1,6 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
-chcp 65001 >nul 2>&1
 
 echo ==========================================
 echo    教师评价表自动填写程序 - 一键启动脚本

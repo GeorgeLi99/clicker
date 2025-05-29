@@ -1,4 +1,7 @@
 @echo off
+chcp 65001 >nul
+setlocal EnableDelayedExpansion
+
 echo 正在检查Python环境...
 
 python --version >nul 2>&1

@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 
 echo ==========================================
-echo    教室评价表自动填写程序 - 一键启动脚本
+echo    教师评价表自动填写程序 - 一键启动脚本
 echo ==========================================
 echo.
 
@@ -93,7 +93,7 @@ REM 检查config.py是否存在，如果不存在则创建
 if not exist "config.py" (
     echo 正在创建配置文件...
     (
-        echo # 南京大学教室评价系统配置文件
+        echo # 南京大学教师评价系统配置文件
         echo.
         echo # 登录页面URL
         echo LOGIN_URL = "https://authserver.nju.edu.cn/authserver/login?service=https%%3A%%2F%%2Fehallapp.nju.edu.cn%%2Fjwapp%%2Fsys%%2Fwspjyyapp%%2F*default%%2Findex.do"
@@ -132,7 +132,7 @@ if not exist "logs" mkdir logs
 echo.
 echo ==========================================
 echo            环境检查完成
-echo        正在启动教室评价自动填写程序
+echo        正在启动教师评价自动填写程序
 echo ==========================================
 echo.
 

@@ -7,6 +7,17 @@ echo    南京大学教师评价自动填写程序 - 一键启动
 echo ==========================================
 echo.
 
+REM 检查是否是重启后的执行
+if exist "temp_restart_flag.txt" (
+    echo 检测到重启标记，正在清理...
+    del "temp_restart_flag.txt" >nul 2>&1
+    echo ✅ 已清理重启标记
+    echo.
+)
+
+REM 清理可能残留的临时文件
+if exist "temp_admin_flag.txt" del "temp_admin_flag.txt" >nul 2>&1
+
 REM 全面的环境检查函数
 goto :check_environment
 
@@ -95,19 +106,44 @@ echo ==========================================
 echo.
 
 REM 检查管理员权限
+echo 检查管理员权限...
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ⚠️  检测到当前不是管理员权限
-    echo 自动安装Python需要管理员权限，程序将尝试请求管理员权限...
     echo.
+    echo ⚠️  检测到当前不是管理员权限
+    echo 自动安装Python需要管理员权限
+    echo.
+    echo 程序将以管理员权限重新启动...
     echo 如果弹出UAC提示，请点击"是"来允许程序以管理员身份运行
     echo.
+    echo 正在请求管理员权限...
     pause
     
+    REM 创建临时标记文件，避免无限循环
+    echo auto_install > temp_admin_flag.txt
+    
     REM 请求管理员权限重新运行脚本
-    powershell -Command "Start-Process cmd -ArgumentList '/c cd /d \"%cd%\" && \"%~f0\"' -Verb RunAs"
+    powershell -WindowStyle Hidden -Command "try { Start-Process cmd -ArgumentList '/c cd /d \"%cd%\" && \"%~f0\"' -Verb RunAs } catch { Write-Host 'UAC请求失败或被拒绝' }"
+    
+    REM 检查是否成功获取权限
+    timeout /t 3 >nul
+    if exist temp_admin_flag.txt (
+        echo.
+        echo ❌ 获取管理员权限失败或被拒绝
+        echo.
+        echo 解决方案：
+        echo 1. 右键点击 run.bat，选择"以管理员身份运行"
+        echo 2. 或者选择手动安装Python（选项2）
+        echo.
+        del temp_admin_flag.txt >nul 2>&1
+        goto :manual_install_guide
+    )
+    
     exit /b 0
 )
+
+REM 删除临时标记文件（如果存在）
+if exist temp_admin_flag.txt del temp_admin_flag.txt >nul 2>&1
 
 echo ✅ 检测到管理员权限
 echo.
@@ -142,65 +178,126 @@ echo 正在下载Python安装包，请稍候...
 echo 这可能需要几分钟时间，取决于您的网络速度...
 echo.
 
-powershell -Command "& {
+REM 修复PowerShell下载命令，增加错误处理
+echo 开始下载...
+powershell -ExecutionPolicy Bypass -Command "& {
     try {
+        Write-Host '正在连接下载服务器...'
         $ProgressPreference = 'SilentlyContinue'
-        Write-Host '开始下载...'
-        Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile 'temp\%PYTHON_FILENAME%' -UseBasicParsing
-        Write-Host '✅ 下载完成'
-        exit 0
+        
+        # 检查网络连接
+        if (Test-Connection -ComputerName 'www.python.org' -Count 1 -Quiet) {
+            Write-Host '网络连接正常，开始下载...'
+        } else {
+            Write-Host '❌ 无法连接到Python官方服务器'
+            exit 2
+        }
+        
+        # 下载文件
+        Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile 'temp\%PYTHON_FILENAME%' -UseBasicParsing -TimeoutSec 300
+        
+        # 验证下载
+        if (Test-Path 'temp\%PYTHON_FILENAME%') {
+            $fileSize = (Get-Item 'temp\%PYTHON_FILENAME%').Length
+            if ($fileSize -gt 1MB) {
+                Write-Host '✅ 下载完成，文件大小: ' + [math]::Round($fileSize/1MB, 2) + ' MB'
+                exit 0
+            } else {
+                Write-Host '❌ 下载的文件太小，可能不完整'
+                exit 3
+            }
+        } else {
+            Write-Host '❌ 下载的文件不存在'
+            exit 4
+        }
     } catch {
         Write-Host '❌ 下载失败: ' + $_.Exception.Message
+        if ($_.Exception.Message -like '*timeout*') {
+            Write-Host '下载超时，请检查网络连接'
+        }
         exit 1
     }
 }"
 
-if %errorlevel% neq 0 (
+set DOWNLOAD_RESULT=%errorlevel%
+
+if %DOWNLOAD_RESULT% neq 0 (
     echo.
-    echo ❌ Python下载失败
+    if %DOWNLOAD_RESULT% equ 2 (
+        echo ❌ 网络连接失败
+    ) else if %DOWNLOAD_RESULT% equ 3 (
+        echo ❌ 下载的文件不完整
+    ) else if %DOWNLOAD_RESULT% equ 4 (
+        echo ❌ 下载的文件不存在
+    ) else (
+        echo ❌ Python下载失败
+    )
     echo.
     echo 可能的原因：
-    echo 1. 网络连接问题
+    echo 1. 网络连接问题或下载超时
     echo 2. 防火墙或杀毒软件拦截
-    echo 3. 官方服务器暂时不可用
+    echo 3. Python官方服务器暂时不可用
+    echo 4. 磁盘空间不足
     echo.
     echo 建议：
-    echo 1. 检查网络连接
+    echo 1. 检查网络连接是否稳定
     echo 2. 临时关闭杀毒软件后重试
-    echo 3. 手动下载Python: https://www.python.org/downloads/
+    echo 3. 使用其他网络环境重试
+    echo 4. 手动下载Python: https://www.python.org/downloads/
     echo.
+    echo 按任意键返回选择菜单...
+    pause >nul
     goto :cleanup_and_exit
 )
 
-REM 验证下载的文件
+REM 最终验证下载的文件
 if not exist "temp\%PYTHON_FILENAME%" (
-    echo ❌ 下载的文件不存在
+    echo ❌ 下载验证失败：文件不存在
+    echo 按任意键返回选择菜单...
+    pause >nul
     goto :cleanup_and_exit
 )
 
 echo.
-echo ✅ Python安装包下载完成
+echo ✅ Python安装包下载并验证完成
 echo 正在安装Python，请稍候...
 echo.
 
 REM 静默安装Python
 echo 开始安装Python %PYTHON_VERSION%...
 echo 安装选项：
-echo - 添加Python到PATH
-echo - 安装pip
-echo - 安装所有用户
+echo - 添加Python到PATH环境变量
+echo - 安装pip包管理器
+echo - 为所有用户安装
+echo - 包含Tkinter支持
 echo.
+echo 安装过程可能需要1-3分钟，请耐心等待...
 
-"temp\%PYTHON_FILENAME%" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_doc=0 Include_dev=0 Include_debug=0 Include_launcher=1 Include_tcltk=1 Include_pip=1
+REM 使用start /wait确保等待安装完成
+start /wait "" "temp\%PYTHON_FILENAME%" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 Include_doc=0 Include_dev=0 Include_debug=0 Include_launcher=1 Include_tcltk=1 Include_pip=1
 
-if %errorlevel% neq 0 (
+set INSTALL_RESULT=%errorlevel%
+
+if %INSTALL_RESULT% neq 0 (
+    echo.
     echo ❌ Python安装失败
-    echo 错误代码: %errorlevel%
+    echo 错误代码: %INSTALL_RESULT%
     echo.
-    echo 请尝试：
-    echo 1. 手动运行 temp\%PYTHON_FILENAME%
-    echo 2. 或者访问 https://www.python.org/downloads/ 手动下载安装
+    echo 可能的原因：
+    echo 1. 安装权限不足
+    echo 2. 磁盘空间不足
+    echo 3. 系统文件被占用
+    echo 4. 杀毒软件阻止安装
     echo.
+    echo 解决方案：
+    echo 1. 以管理员身份重新运行脚本
+    echo 2. 手动运行安装程序: temp\%PYTHON_FILENAME%
+    echo 3. 临时关闭杀毒软件后重试
+    echo 4. 清理磁盘空间后重试
+    echo 5. 访问 https://www.python.org/downloads/ 手动下载安装
+    echo.
+    echo 按任意键返回选择菜单...
+    pause >nul
     goto :cleanup_and_exit
 )
 
@@ -209,28 +306,50 @@ echo.
 
 REM 清理安装文件
 echo 清理临时文件...
-del "temp\%PYTHON_FILENAME%" >nul 2>&1
-rmdir "temp" >nul 2>&1
+if exist "temp\%PYTHON_FILENAME%" del "temp\%PYTHON_FILENAME%" >nul 2>&1
+if exist "temp" rmdir "temp" >nul 2>&1
 
 echo.
 echo ==========================================
 echo        Python安装成功
 echo ==========================================
 echo.
-echo Python %PYTHON_VERSION% 已成功安装到您的系统中
+echo 🎉 Python %PYTHON_VERSION% 已成功安装到您的系统中
+echo.
+echo 正在验证安装...
+
+REM 刷新环境变量并验证Python
+timeout /t 2 >nul
+python --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo ✅ Python安装验证成功
+    python --version
+) else (
+    echo ⚠️  Python命令验证失败（这是正常的）
+    echo 环境变量可能需要重启后生效
+)
+
 echo.
 echo 程序将重新启动以使用新安装的Python...
+echo 如果重启后仍有问题，请重启计算机
 echo.
-pause
+echo 按任意键继续...
+pause >nul
+
+REM 创建重启标记
+echo restart > temp_restart_flag.txt
 
 REM 重新启动脚本以使用新安装的Python
 echo 重新启动程序...
-cmd /c "%~f0"
+timeout /t 1 >nul
+start "" cmd /c "cd /d \"%cd%\" && \"%~f0\" && del temp_restart_flag.txt >nul 2>&1"
 exit /b 0
 
 :cleanup_and_exit
 if exist "temp\%PYTHON_FILENAME%" del "temp\%PYTHON_FILENAME%" >nul 2>&1
 if exist "temp" rmdir "temp" >nul 2>&1
+if exist "temp_admin_flag.txt" del "temp_admin_flag.txt" >nul 2>&1
+if exist "temp_restart_flag.txt" del "temp_restart_flag.txt" >nul 2>&1
 goto :error_exit
 
 :manual_install_guide
@@ -397,7 +516,11 @@ set "LOG_FILE=logs\run_log_!CURRENT_DATETIME!.log"
 echo 日志将记录到: !LOG_FILE!
 echo.
 
-"%PYTHON_CMD%" main.py > "!LOG_FILE!" 2>&1
+REM 使用错误处理确保程序不会意外退出
+(
+    "%PYTHON_CMD%" main.py 2>&1
+) > "!LOG_FILE!"
+
 set EXIT_CODE=%errorlevel%
 
 echo.
@@ -427,13 +550,23 @@ echo 2. 确保网络连接正常，能够下载Python包
 echo 3. 尝试以管理员身份运行此脚本
 echo 4. 如果问题持续存在，请运行fix文件夹中的修复工具
 echo.
+echo 其他解决方案：
+echo - 运行 install_python.bat 单独安装Python
+echo - 运行 fix/diagnose.bat 进行系统诊断
+echo - 运行 test_environment.bat 快速测试环境
+echo.
 echo 按任意键退出...
 pause >nul
 exit /b 1
 
 :normal_exit
 echo.
-echo 程序输出已记录到 !LOG_FILE!
+if exist "!LOG_FILE!" (
+    echo 程序输出已记录到 !LOG_FILE!
+) else (
+    echo 程序运行完成
+)
+echo.
 echo 按任意键退出...
-PAUSE
+pause >nul
 exit /b %EXIT_CODE% 

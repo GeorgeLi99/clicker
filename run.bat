@@ -8,12 +8,50 @@ REM 检查Python是否已安装
 echo 正在检查Python环境...
 python --version > nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python未安装，正在打开Python官方下载页面...
-    start https://www.python.org/downloads/
-    echo 请安装Python 3.8或以上版本，安装时勾选"Add Python to PATH"选项
-    echo 安装完成后请重新运行此脚本
-    pause
-    exit /b 1
+    echo Python未安装，正在准备自动下载并安装...
+    
+    REM 创建临时目录用于下载安装程序
+    mkdir temp 2>nul
+    cd temp
+    
+    echo 正在下载Python安装程序...
+    REM 使用PowerShell下载Python安装程序
+    powershell -Command "(New-Object System.Net.WebClient).DownloadFile('https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe', 'python_installer.exe')"
+    
+    if not exist python_installer.exe (
+        echo 下载Python安装程序失败！
+        echo 正在打开Python官方下载页面...
+        cd ..
+        rmdir /s /q temp 2>nul
+        start https://www.python.org/downloads/
+        echo 请手动安装Python 3.8或以上版本，安装时勾选"Add Python to PATH"选项
+        echo 安装完成后请重新运行此脚本
+        pause
+        exit /b 1
+    )
+    
+    echo 正在安装Python...
+    echo 请在弹出的安装向导中点击"Install Now"，并确保勾选"Add Python to PATH"选项
+    start /wait python_installer.exe /quiet PrependPath=1
+    
+    cd ..
+    rmdir /s /q temp 2>nul
+    
+    echo Python安装完成，正在检查安装结果...
+    timeout /t 5 /nobreak > nul
+    
+    REM 检查Python是否已成功安装
+    python --version > nul 2>&1
+    if %errorlevel% neq 0 (
+        echo Python安装似乎未成功完成，请手动安装...
+        start https://www.python.org/downloads/
+        echo 请安装Python 3.8或以上版本，安装时勾选"Add Python to PATH"选项
+        echo 安装完成后请重新运行此脚本
+        pause
+        exit /b 1
+    )
+    
+    echo Python已成功安装！
 )
 
 REM 验证Python版本

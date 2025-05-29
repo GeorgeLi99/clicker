@@ -6,7 +6,22 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
+import sys
 from config import LOGIN_URL, WEB_URL
+
+# 尝试从配置文件导入Chrome驱动路径和自动下载设置
+# CUSTOM_DRIVER_PATH 和 CHROME_DRIVER_PATH 不再使用，但保留配置文件的读取以防万一
+try:
+    from config import CHROME_DRIVER_PATH
+    CUSTOM_DRIVER_PATH = True
+except ImportError:
+    CUSTOM_DRIVER_PATH = False
+
+try:
+    from config import USE_AUTO_DRIVER
+    AUTO_DRIVER = USE_AUTO_DRIVER
+except ImportError:
+    AUTO_DRIVER = True  # 默认优先使用自动管理
 
 # 创建日志目录
 os.makedirs('logs', exist_ok=True)
@@ -448,44 +463,26 @@ class TAEvaluator(Evaluator):
             # 尝试多种方法查找助教标签页
             ta_tabs = None
 
-            # 方法1：通过CLASS_NAME查找
+            # 方法1：通过ID查找
             try:
                 ta_tabs = self.driver.find_elements(
-                    By.CLASS_NAME, "jqx-reset.jqx-disableselect.jqx-tabs-title.jqx-item.jqx-rc-t")
+                    By.ID, "tabName-content-1")
                 if ta_tabs and len(ta_tabs) > 0:
-                    print(f"方法1：通过CLASS_NAME找到 {len(ta_tabs)} 个助教标签页")
+                    print(f"方法1：通过ID找到 {len(ta_tabs)} 个助教标签页")
                 else:
-                    print("方法1：通过CLASS_NAME未找到助教标签页")
+                    print("方法1：通过ID未找到助教标签页")
                     ta_tabs = None
             except Exception as e:
-                print(f"方法1：通过CLASS_NAME查找助教标签页失败: {e}")
+                print(f"方法1：通过ID查找助教标签页失败: {e}")
                 ta_tabs = None
 
-            # 方法2：通过XPath查找（如果方法1失败）
+            # 方法2：通过CLASS_NAME查找
             if not ta_tabs or len(ta_tabs) == 0:
                 try:
-                    # 尝试更宽松的XPath
                     ta_tabs = self.driver.find_elements(
-                        By.XPATH, "//div[contains(@class, 'jqx-tabs-title')]")
-                    if ta_tabs and len(ta_tabs) > 0:
-                        print(f"方法2：通过XPath找到 {len(ta_tabs)} 个助教标签页")
-                    else:
-                        print("方法2：通过XPath未找到助教标签页")
+                        By.CLASS_NAME, "jqx-reset.jqx-disableselect.jqx-tabs-title.jqx-item.jqx-rc-t")
                 except Exception as e:
-                    print(f"方法2：通过XPath查找助教标签页失败: {e}")
-
-            # 方法3：通过部分CLASS_NAME查找（如果方法1和2都失败）
-            if not ta_tabs or len(ta_tabs) == 0:
-                try:
-                    # 尝试使用部分class name
-                    ta_tabs = self.driver.find_elements(
-                        By.CSS_SELECTOR, "div.jqx-tabs-title")
-                    if ta_tabs and len(ta_tabs) > 0:
-                        print(f"方法3：通过CSS_SELECTOR找到 {len(ta_tabs)} 个助教标签页")
-                    else:
-                        print("方法3：通过CSS_SELECTOR未找到助教标签页")
-                except Exception as e:
-                    print(f"方法3：通过CSS_SELECTOR查找助教标签页失败: {e}")
+                    print(f"方法2：通过CLASS_NAME查找助教标签页失败: {e}")
 
             # 输出所有找到的标签页文本
             if ta_tabs and len(ta_tabs) > 0:
@@ -528,15 +525,38 @@ class TAEvaluator(Evaluator):
 
 
 def main():
-    # 使用webdriver_manager自动下载并配置最新的Chrome驱动
+    # 初始化Chrome浏览器
     log("正在初始化Chrome浏览器...")
+    driver = None
+    options = webdriver.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument("--ignore-ssl-errors")
+    options.add_argument("--remote-debugging-port=9222")
+
+    # 1. 尝试 Selenium Manager（推荐）
     try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service)
-        log("Chrome浏览器初始化成功")
-    except Exception as e:
-        log(f"Chrome浏览器初始化失败: {e}")
-        log("请确保已安装Chrome浏览器，并且网络连接正常")
+        log("尝试使用Selenium Manager自动解析驱动...")
+        driver = webdriver.Chrome(options=options)  # Selenium 4.6+ 会自动下载
+        log("Selenium Manager初始化成功")
+    except Exception as sm_err:
+        log(f"Selenium Manager初始化失败: {sm_err}")
+        driver = None
+
+    # 2. 如果Selenium Manager失败，尝试 webdriver_manager
+    if driver is None:
+        try:
+            log("尝试使用webdriver_manager自动下载驱动...")
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            log("webdriver_manager初始化成功")
+        except Exception as wdm_err:
+            log(f"webdriver_manager初始化失败: {wdm_err}")
+            driver = None
+
+    if driver is None:
+        log("未能成功初始化Chrome驱动，程序退出。请检查驱动版本或手动配置CHROME_DRIVER_PATH。")
         input("按任意键退出...")
         return None
 

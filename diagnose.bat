@@ -118,6 +118,42 @@ if %errorlevel% equ 0 (
 )
 echo.
 
+REM 浏览器连接测试
+echo ════ 浏览器连接测试 ════
+echo 测试浏览器基本功能...
+python -c "
+try:
+    from selenium import webdriver
+    print('正在启动Chrome浏览器...')
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    driver = webdriver.Chrome(options=options)
+    print('✅ Chrome浏览器启动成功')
+    
+    print('测试百度连接...')
+    driver.get('https://www.baidu.com')
+    if 'baidu' in driver.current_url:
+        print('✅ 网络连接正常')
+    else:
+        print('❌ 网络连接异常')
+    
+    print('测试南大服务器连接...')
+    driver.get('https://authserver.nju.edu.cn')
+    if 'authserver.nju.edu.cn' in driver.current_url:
+        print('✅ 南大服务器可访问')
+    else:
+        print('❌ 无法访问南大服务器')
+    
+    driver.quit()
+    print('✅ 浏览器测试完成')
+except Exception as e:
+    print(f'❌ 浏览器测试失败: {e}')
+    print('可能原因：Chrome未安装或驱动版本不匹配')
+" 2>nul || echo ❌ 浏览器测试失败：请确保已安装Chrome浏览器
+echo.
+
 REM 检查权限
 echo ════ 权限检查 ════
 echo 当前用户:

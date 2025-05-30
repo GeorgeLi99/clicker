@@ -266,7 +266,16 @@ class Evaluator:
                 return True
             except Exception as xpath_submit_error:
                 log(f"通过XPath查找提交按钮失败: {xpath_submit_error}")
-                return False
+                
+                # 尝试用LINE_TEXT查找提交按钮
+                try:
+                    submit_line_text = self.driver.find_element(
+                        By.LINK_TEXT, "提交")
+                    self.click_with_js(submit_line_text, f"{type_name}评价提交按钮(通过LINE_TEXT)")
+                    return True
+                except Exception as line_text_submit_error:
+                    log(f"通过LINE_TEXT查找提交按钮失败: {line_text_submit_error}")
+                    return False
 
     def click_confirm_button(self, method_count=2):
         """尝试多种方法点击确认按钮"""
@@ -287,13 +296,21 @@ class Evaluator:
                         "arguments[0].click();", confirm_xpath)
                     log("已点击确认按钮(方法2)")
                     return True
-                else:
+                elif attempt == 2:
                     # 方法3：通过其他XPath查找按钮
                     confirm_btn = self.driver.find_element(
                         By.XPATH, "//div[contains(@class, 'bh-dialog')]//button")
                     self.driver.execute_script(
                         "arguments[0].click();", confirm_btn)
                     log("已点击确认按钮(方法3)")
+                    return True
+                else:
+                    # 方法4：通过LINK_TEXT查找确认按钮
+                    confirm_link_text = self.driver.find_element(
+                        By.LINK_TEXT, "确定")
+                    self.driver.execute_script(
+                        "arguments[0].click();", confirm_link_text)
+                    log("已点击确认按钮(方法4)")
                     return True
             except Exception as e:
                 log(f"尝试第 {attempt+1} 种方法点击确认按钮失败: {e}")

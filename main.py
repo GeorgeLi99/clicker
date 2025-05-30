@@ -9,7 +9,7 @@ import os
 import sys
 import random
 from config import LOGIN_URL, WEB_URL
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 
 # 尝试从配置文件导入Chrome驱动路径和自动下载设置
 # CUSTOM_DRIVER_PATH 和 CHROME_DRIVER_PATH 不再使用，但保留配置文件的读取以防万一
@@ -266,12 +266,13 @@ class Evaluator:
                 return True
             except Exception as xpath_submit_error:
                 log(f"通过XPath查找提交按钮失败: {xpath_submit_error}")
-                
+
                 # 尝试用LINE_TEXT查找提交按钮
                 try:
                     submit_line_text = self.driver.find_element(
                         By.LINK_TEXT, "提交")
-                    self.click_with_js(submit_line_text, f"{type_name}评价提交按钮(通过LINE_TEXT)")
+                    self.click_with_js(
+                        submit_line_text, f"{type_name}评价提交按钮(通过LINE_TEXT)")
                     return True
                 except Exception as line_text_submit_error:
                     log(f"通过LINE_TEXT查找提交按钮失败: {line_text_submit_error}")
@@ -353,18 +354,19 @@ class TeacherEvaluator(Evaluator):
         try:
             # 在卡片中查找底部元素
             log(f"查找第 {card_index+1} 个评价卡片的底部元素")
-            card_bottom = card_element.find_element(
-                By.CLASS_NAME, "card-btn.blue")
+            card_bottom = WebDriverWait(card_element, 10).until(
+                EC.element_to_be_clickable((By.CLASS_NAME, "card-btn.blue"))
+            )
 
             # 尝试点击底部元素
             log(f"点击第 {card_index+1} 个评价卡片的底部元素")
             success = self.click_with_js(
-                card_bottom, f"第 {card_index+1} 个评价卡片的底部元素", 1)
+                card_bottom, f"第 {card_index+1} 个评价卡片的底部元素", 0.5)
             if not success:
                 # 尝试备选点击方法
                 return self.try_alternative_click_methods(card_element, card_index)
 
-            time.sleep(0.0005)  # 等待页面加载
+            time.sleep(1)  # 等待页面加载
 
             # 获取评价卡片中的评价指标
             return self.process_teacher_evaluation_form(card_index)
@@ -380,12 +382,13 @@ class TeacherEvaluator(Evaluator):
             log(f"策略2：滑动窗口后点击第 {card_index+1} 个评价卡片的底部元素")
             self.driver.execute_script(
                 "arguments[0].scrollIntoView(true);", card_element)
-            time.sleep(0.0005)
+            time.sleep(0.5)
+
             card_bottom = card_element.find_element(
                 By.CLASS_NAME, "card-bottom")
             self.driver.execute_script("arguments[0].click();", card_bottom)
             log(f"滑动后点击底部元素成功")
-            time.sleep(0.0005)  # 增加等待时间
+            time.sleep(1)  # 增加等待时间
 
             # 获取评价卡片中的评价指标
             return self.process_teacher_evaluation_form(card_index)
@@ -400,7 +403,7 @@ class TeacherEvaluator(Evaluator):
                     By.CLASS_NAME, "card-bottom")
                 card_bottom.click()
                 log(f"原生点击底部元素成功")
-                time.sleep(0.0005)  # 增加等待时间
+                time.sleep(1)  # 增加等待时间
 
                 # 获取评价卡片中的评价指标
                 return self.process_teacher_evaluation_form(card_index)
@@ -455,7 +458,7 @@ class TeacherEvaluator(Evaluator):
                                     # 输入评价
                                     self.click_with_js(
                                         input_box, f"第 {element_idx+1} 个{element_desc}", 0.00005)
-                                    time.sleep(0.00005)
+                                    time.sleep(1)
                                 except Exception as radio_error:
                                     log(
                                         f"点击第 {element_idx+1} 个{element_desc}失败: {radio_error}")
@@ -477,7 +480,7 @@ class TeacherEvaluator(Evaluator):
                 # 点击确认按钮
                 self.click_confirm_button(3)
                 # 等待确认操作完成
-                time.sleep(0.0005)
+                time.sleep(1)
                 return True
 
             return False
@@ -520,7 +523,7 @@ class TAEvaluator(Evaluator):
             # 尝试滚动到元素位置
             self.driver.execute_script(
                 "arguments[0].scrollIntoView(true);", ta_tab)
-            time.sleep(0.0005)  # 等待滚动完成
+            time.sleep(0.5)  # 等待滚动完成
 
             # 尝试点击元素
             success = self.click_with_js(ta_tab, f"第 {tab_index+1} 个助教标签页", 1)
@@ -536,7 +539,7 @@ class TAEvaluator(Evaluator):
                     return False
 
             log(f"成功点击第 {tab_index+1} 个助教标签页")
-            time.sleep(0.0005)  # 延长等待时间，确保页面完全加载
+            time.sleep(1)  # 延长等待时间，确保页面完全加载
 
             # 处理该标签页下的所有助教
             ta_card_processed = 0
@@ -634,7 +637,7 @@ class TAEvaluator(Evaluator):
             # 点击底部元素
             self.click_with_js(
                 ta_card_bottom, f"第 {card_index+1} 个助教卡片的底部元素", 1)
-            time.sleep(0.0005)  # 确保评价页面加载完成
+            time.sleep(1)  # 确保评价页面加载完成
 
             # 处理评价选项
             ta_judge_indexes = self.driver.find_elements(
@@ -650,7 +653,7 @@ class TAEvaluator(Evaluator):
                 # 处理确认弹窗 - 尝试多种方法
                 self.click_confirm_button(3)
                 # 增加等待时间，确保确认操作完成并返回到列表页
-                time.sleep(0.0005)
+                time.sleep(1)
                 return True
 
             return False
@@ -911,13 +914,40 @@ def main():
     driver = None
     options = webdriver.ChromeOptions()
 
+    # Explicitly set Chrome binary location (try common paths)
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(
+            r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe")
+    ]
+    found_chrome_path = None
+    for path in chrome_paths:
+        if os.path.exists(path):
+            found_chrome_path = path
+            break
+    if found_chrome_path:
+        options.binary_location = found_chrome_path
+        log(f"Explicitly set Chrome binary location to: {found_chrome_path}")
+    else:
+        log("Could not find Chrome binary at common locations. Relying on system PATH.")
+
     # 优化Chrome启动参数
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")  # Re-adding, often needed
+    options.add_argument("--disable-dev-shm-usage")  # Keep for compatibility
     options.add_argument("--ignore-certificate-errors")
     options.add_argument("--ignore-ssl-errors")
     options.add_argument("--disable-extensions")
-    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--enable-automation")
+    options.add_argument("--test-type")  # Often used with --no-sandbox
+    # Helps with WebDriver navigation
+    options.add_argument("--disable-browser-side-navigation")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    # Reduce Chrome's own logging verbosity displayed to console by driver
+    options.add_argument("--log-level=0")
 
     # 设置用户代理，避免被检测为自动化工具
     # 定义一组常用的User-Agent
@@ -961,10 +991,13 @@ def main():
         safe_input("按任意键退出...")
         return None
 
+    log("Chrome驱动初始化完成.")  # 新增日志
+    time.sleep(1)  # 给浏览器进程一点额外时间启动
+
     try:
-        # 设置浏览器窗口大小
-        driver.maximize_window()
-        log("浏览器窗口已最大化")
+        # 设置浏览器窗口大小 - 已通过 options.add_argument("--start-maximized") 实现
+        # driver.maximize_window()
+        # log("浏览器窗口已最大化")
 
         # 设置页面加载超时
         driver.set_page_load_timeout(30)

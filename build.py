@@ -50,9 +50,9 @@ VSVersionInfo(
         [StringStruct(u'CompanyName', u'南京大学物理学院有仁班'),
         StringStruct(u'FileDescription', u'南京大学教师评价表自动填写程序'),
         StringStruct(u'FileVersion', u'1.0.0'),
-        StringStruct(u'InternalName', u'clicker'),
+        StringStruct(u'InternalName', u'nju-feedback-auto-filler'),
         StringStruct(u'LegalCopyright', u'Copyright (C) 2025'),
-        StringStruct(u'OriginalFilename', u'clicker.exe'),
+        StringStruct(u'OriginalFilename', u'nju-feedback-auto-filler.exe'),
         StringStruct(u'ProductName', u'教师评价表自动填写程序'),
         StringStruct(u'ProductVersion', u'1.0.0')])
       ]), 
@@ -79,7 +79,7 @@ def build_exe():
         '--onefile '    # 打包成单个文件
         '--noconsole '  # 不显示控制台窗口
         '--clean '      # 清理临时文件
-        '--name "clicker" '  # 输出文件名
+        '--name "nju-feedback-auto-filler" '  # 输出文件名
         '--version-file version_info.txt '  # 版本信息
         '--add-data "config.py;." '  # 添加配置文件
         '--hidden-import selenium '  # 添加隐藏导入
@@ -97,7 +97,7 @@ def build_exe():
         os.remove('version_info.txt')
 
     print("\n打包完成！")
-    print(f"可执行文件位置: {os.path.abspath('dist/clicker.exe')}")
+    print(f"可执行文件位置: {os.path.abspath('dist/nju-feedback-auto-filler.exe')}")
 
 
 if __name__ == '__main__':

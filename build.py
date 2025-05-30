@@ -47,13 +47,13 @@ VSVersionInfo(
       [
       StringTable(
         u'080404b0',
-        [StringStruct(u'CompanyName', u'南京大学'),
-        StringStruct(u'FileDescription', u'南京大学教室评价表自动填写程序'),
+        [StringStruct(u'CompanyName', u'南京大学物理学院有仁班'),
+        StringStruct(u'FileDescription', u'南京大学教师评价表自动填写程序'),
         StringStruct(u'FileVersion', u'1.0.0'),
         StringStruct(u'InternalName', u'clicker'),
-        StringStruct(u'LegalCopyright', u'Copyright (C) 2024'),
+        StringStruct(u'LegalCopyright', u'Copyright (C) 2025'),
         StringStruct(u'OriginalFilename', u'clicker.exe'),
-        StringStruct(u'ProductName', u'教室评价表自动填写程序'),
+        StringStruct(u'ProductName', u'教师评价表自动填写程序'),
         StringStruct(u'ProductVersion', u'1.0.0')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])

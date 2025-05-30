@@ -347,7 +347,7 @@ class TeacherEvaluator(Evaluator):
                 # 尝试备选点击方法
                 return self.try_alternative_click_methods(card_element, card_index)
 
-            time.sleep(0.5)  # 等待页面加载
+            time.sleep(0.0005)  # 等待页面加载
 
             # 获取评价卡片中的评价指标
             return self.process_teacher_evaluation_form(card_index)
@@ -363,12 +363,12 @@ class TeacherEvaluator(Evaluator):
             log(f"策略2：滑动窗口后点击第 {card_index+1} 个评价卡片的底部元素")
             self.driver.execute_script(
                 "arguments[0].scrollIntoView(true);", card_element)
-            time.sleep(0.5)
+            time.sleep(0.0005)
             card_bottom = card_element.find_element(
                 By.CLASS_NAME, "card-bottom")
             self.driver.execute_script("arguments[0].click();", card_bottom)
             log(f"滑动后点击底部元素成功")
-            time.sleep(0.5)  # 增加等待时间
+            time.sleep(0.0005)  # 增加等待时间
 
             # 获取评价卡片中的评价指标
             return self.process_teacher_evaluation_form(card_index)
@@ -383,7 +383,7 @@ class TeacherEvaluator(Evaluator):
                     By.CLASS_NAME, "card-bottom")
                 card_bottom.click()
                 log(f"原生点击底部元素成功")
-                time.sleep(0.5)  # 增加等待时间
+                time.sleep(0.0005)  # 增加等待时间
 
                 # 获取评价卡片中的评价指标
                 return self.process_teacher_evaluation_form(card_index)
@@ -460,7 +460,7 @@ class TeacherEvaluator(Evaluator):
                 # 点击确认按钮
                 self.click_confirm_button(3)
                 # 等待确认操作完成
-                time.sleep(0.5)
+                time.sleep(0.0005)
                 return True
 
             return False
@@ -503,7 +503,7 @@ class TAEvaluator(Evaluator):
             # 尝试滚动到元素位置
             self.driver.execute_script(
                 "arguments[0].scrollIntoView(true);", ta_tab)
-            time.sleep(0.5)  # 等待滚动完成
+            time.sleep(0.0005)  # 等待滚动完成
 
             # 尝试点击元素
             success = self.click_with_js(ta_tab, f"第 {tab_index+1} 个助教标签页", 1)
@@ -519,7 +519,7 @@ class TAEvaluator(Evaluator):
                     return False
 
             log(f"成功点击第 {tab_index+1} 个助教标签页")
-            time.sleep(0.5)  # 延长等待时间，确保页面完全加载
+            time.sleep(0.0005)  # 延长等待时间，确保页面完全加载
 
             # 处理该标签页下的所有助教
             ta_card_processed = 0
@@ -617,7 +617,7 @@ class TAEvaluator(Evaluator):
             # 点击底部元素
             self.click_with_js(
                 ta_card_bottom, f"第 {card_index+1} 个助教卡片的底部元素", 1)
-            time.sleep(0.5)  # 确保评价页面加载完成
+            time.sleep(0.0005)  # 确保评价页面加载完成
 
             # 处理评价选项
             ta_judge_indexes = self.driver.find_elements(
@@ -633,7 +633,7 @@ class TAEvaluator(Evaluator):
                 # 处理确认弹窗 - 尝试多种方法
                 self.click_confirm_button(3)
                 # 增加等待时间，确保确认操作完成并返回到列表页
-                time.sleep(0.5)
+                time.sleep(0.0005)
                 return True
 
             return False

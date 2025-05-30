@@ -290,11 +290,11 @@ class Evaluator:
                     log("已点击确认按钮(方法1)")
                     return True
                 elif attempt == 1:
-                    # 方法2：通过XPath查找确认按钮
-                    confirm_xpath = self.driver.find_element(
-                        By.XPATH, "//button[contains(text(), '确定') or contains(text(), '确认')]")
+                    # 方法2：通过LINK_TEXT查找确认按钮
+                    confirm_link_text = self.driver.find_element(
+                        By.LINK_TEXT, "确认")
                     self.driver.execute_script(
-                        "arguments[0].click();", confirm_xpath)
+                        "arguments[0].click();", confirm_link_text)
                     log("已点击确认按钮(方法2)")
                     return True
                 elif attempt == 2:
@@ -351,6 +351,7 @@ class TeacherEvaluator(Evaluator):
 
     def process_teacher_card(self, card_element, card_index):
         """处理单个教师评价卡片"""
+        time.sleep(0.7)
         try:
             # 在卡片中查找底部元素
             log(f"查找第 {card_index+1} 个评价卡片的底部元素")
@@ -478,7 +479,7 @@ class TeacherEvaluator(Evaluator):
             # 所有评价指标处理完毕后，提交表单
             if self.find_and_click_submit_button("教师"):
                 # 点击确认按钮
-                self.click_confirm_button(3)
+                self.click_confirm_button(4)
                 # 等待确认操作完成
                 time.sleep(1)
                 return True
@@ -494,22 +495,83 @@ class TeacherEvaluator(Evaluator):
         try:
             # 等待评价页面加载
             time.sleep(1)
-            card_elements = self.driver.find_elements(
-                By.CLASS_NAME, "pj-card.bh-pull-left")
-            log(f"找到 {len(card_elements)} 个教师评价卡片元素")
 
-            # 显示找到的评价卡片文本
-            for element in card_elements:
-                log(element.text)
+            # 首先获取总共需要评价的教师数量
+            initial_cards_on_page = []
+            try:
+                WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_all_elements_located(
+                        (By.CLASS_NAME, "pj-card.bh-pull-left"))
+                )
+                initial_cards_on_page = self.driver.find_elements(
+                    By.CLASS_NAME, "pj-card.bh-pull-left")
+                log("教师评价卡片列表初次加载完成。")
+            except TimeoutException:
+                log("❌ 初始加载教师评价卡片列表超时。可能页面没有卡片或加载失败。")
+                return False
 
-            # 循环点击所有评价卡片的底部元素
-            for i, element in enumerate(card_elements):
-                self.process_teacher_card(element, i)
+            num_teachers_to_evaluate = len(initial_cards_on_page)
+            log(f"检测到总共有 {num_teachers_to_evaluate} 位教师需要评价。")
 
+            if num_teachers_to_evaluate == 0:
+                log("未发现需要评价的教师。")
+                return True  # 没有教师则认为成功
+
+            # 循环处理每一位教师
+            for i in range(num_teachers_to_evaluate):
+                log(f"--- 开始处理第 {i + 1} 位教师 (共 {num_teachers_to_evaluate} 位) ---")
+
+                # 在每次迭代开始时，等待并重新获取卡片列表，确保元素是新鲜的
+                try:
+                    WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_all_elements_located(
+                            (By.CLASS_NAME, "pj-card.bh-pull-left"))
+                    )
+                    log(f"教师列表页面已稳定，准备定位第 {i + 1} 张卡片。")
+                except TimeoutException:
+                    log(f"❌ 在尝试处理第 {i + 1} 位教师前，等待教师列表刷新超时。评价可能无法继续。")
+                    return False  # 如果列表不出现，关键错误
+
+                current_cards_on_page = self.driver.find_elements(
+                    By.CLASS_NAME, "pj-card.bh-pull-left")
+
+                if i >= len(current_cards_on_page):
+                    log(
+                        f"❌ 严重错误：期望处理索引为 {i} 的卡片 (即第 {i+1} 张)，但刷新后页面上只有 {len(current_cards_on_page)} 张卡片。")
+                    log("这可能是由于前一个评价操作导致卡片数量非预期改变，或页面未能正确返回列表。")
+                    return False
+
+                teacher_card_element = current_cards_on_page[i]
+
+                # 尝试记录卡片信息，增加调试信息
+                try:
+                    card_text_preview = teacher_card_element.text.strip().replace(chr(10), ' ')[
+                        :100]  # 增加预览长度
+                    log(f"  即将处理的卡片 (第 {i+1} 张) 文本预览: '{card_text_preview}...'")
+                except StaleElementReferenceException:
+                    # 理论上，因为刚获取元素，这里不应发生。但以防万一。
+                    log(f"⚠️ 警告: 在尝试获取第 {i+1} 张卡片的文本时，发生StaleElementReferenceException。这非常意外。")
+                    # 即使发生，也尝试继续，process_teacher_card 内部有自己的健壮性处理
+                except Exception as e_text:
+                    log(f"  (获取第 {i+1} 张卡片文本预览时发生错误: {e_text})")
+
+                # 调用处理单个卡片的函数
+                # process_teacher_card 内部有用户添加的 time.sleep(0.7)
+                if not self.process_teacher_card(teacher_card_element, i):
+                    log(f"处理第 {i + 1} 位教师的评价表单失败。")
+                    # 此处可以根据需求决定是继续评价下一位还是中止 (例如 return False)
+                    # 当前逻辑：记录日志并继续尝试下一位
+
+                log(f"--- 第 {i + 1} 位教师处理流程结束。准备返回或刷新列表页面。 ---")
+                # 在处理完一个教师后，增加必要的等待，确保页面回到列表状态并稳定
+                # 这里的等待非常重要，因为process_teacher_card后页面状态会改变
+                time.sleep(2)  # 等待列表页面刷新和稳定，可以根据实际情况调整或替换为显式等待特定元素
+
+            log("✅ 所有已检测到的教师均已尝试处理完毕。")
             return True
 
         except Exception as e:
-            log(f"评价教师过程中出错: {e}")
+            log(f"评价所有教师的过程中发生无法处理的顶层错误: {e}")
             return False
 
 
@@ -539,86 +601,86 @@ class TAEvaluator(Evaluator):
                     return False
 
             log(f"成功点击第 {tab_index+1} 个助教标签页")
-            time.sleep(1)  # 延长等待时间，确保页面完全加载
 
-            # 处理该标签页下的所有助教
-            ta_card_processed = 0
-            retry_count = 0
-            max_retries = 3
+            # 等待该标签页下的第一个助教卡片出现，表明内容已加载
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located(
+                        (By.CLASS_NAME, "pj-card.bh-pull-left"))
+                )
+                log(f"助教内容已初步加载于标签页 {tab_index+1}。")
+            except TimeoutException:
+                log(f"❌ 点击标签页 {tab_index+1} 后，等待助教卡片初步加载超时。可能此标签页无助教内容。")
+                return True  # 认为此标签页处理完成（无内容）
 
-            while retry_count < max_retries:
-                # 每次循环重新获取助教卡片，避免stale element问题
-                ta_card_elements = None
+            time.sleep(0.5)  # 短暂等待，确保DOM更新
 
-                # 方法1：通过CLASS_NAME查找
+            # 获取此标签页中总共需要评价的助教数量
+            initial_ta_cards_in_tab = []
+            try:
+                # 等待卡片列表稳定并获取初始列表
+                WebDriverWait(self.driver, 15).until(
+                    EC.presence_of_all_elements_located(
+                        (By.CLASS_NAME, "pj-card.bh-pull-left"))
+                )
+                initial_ta_cards_in_tab = self.driver.find_elements(
+                    By.CLASS_NAME, "pj-card.bh-pull-left")
+                log(f"助教卡片列表在标签页 {tab_index + 1} 中初次统计完成。")
+            except TimeoutException:
+                log(f"❌ 初始统计助教卡片列表超时 (标签页 {tab_index + 1})。")
+                return False  # 如果无法统计，则此标签页处理失败
+
+            num_tas_in_tab = len(initial_ta_cards_in_tab)
+            log(f"检测到标签页 {tab_index + 1} 中总共有 {num_tas_in_tab} 位助教需要评价。")
+
+            if num_tas_in_tab == 0:
+                log(f"标签页 {tab_index + 1} 中未发现需要评价的助教。")
+                return True  # 没有助教则认为此标签页成功处理完毕
+
+            # 循环处理此标签页中的每一位助教
+            for card_idx_in_tab in range(num_tas_in_tab):
+                log(f"--- 开始处理标签页 {tab_index + 1} 中的第 {card_idx_in_tab + 1} 位助教 (共 {num_tas_in_tab} 位) ---")
+
+                current_ta_card_element = None
+                # 在每次迭代开始时，等待并重新获取卡片列表
                 try:
-                    ta_card_elements = self.driver.find_elements(
-                        By.CLASS_NAME, "pj-card.bh-pull-left")
-                    if ta_card_elements and len(ta_card_elements) > 0:
-                        log(f"方法1：找到 {len(ta_card_elements)} 个助教卡片元素")
-                    else:
-                        log("方法1：未找到助教卡片元素")
-                        ta_card_elements = None
-                except Exception as e:
-                    log(f"方法1：查找助教卡片失败: {e}")
-                    ta_card_elements = None
+                    WebDriverWait(self.driver, 20).until(
+                        EC.presence_of_all_elements_located(
+                            (By.CLASS_NAME, "pj-card.bh-pull-left"))
+                    )
+                    log(f"助教列表页面 (标签页 {tab_index + 1}) 已稳定，准备定位第 {card_idx_in_tab + 1} 张卡片。")
+                except TimeoutException:
+                    log(f"❌ 在尝试处理标签页 {tab_index + 1} 中第 {card_idx_in_tab + 1} 位助教前，等待助教列表刷新超时。")
+                    return False  # 关键错误，无法继续处理此标签页
 
-                # 方法2：通过更宽松的选择器查找（如果方法1失败）
-                if not ta_card_elements or len(ta_card_elements) == 0:
-                    try:
-                        ta_card_elements = self.driver.find_elements(
-                            By.CSS_SELECTOR, ".pj-card")
-                        if ta_card_elements and len(ta_card_elements) > 0:
-                            log(f"方法2：找到 {len(ta_card_elements)} 个助教卡片元素")
-                        else:
-                            log("方法2：未找到助教卡片元素")
-                    except Exception as e:
-                        log(f"方法2：查找助教卡片失败: {e}")
+                current_ta_cards_on_page = self.driver.find_elements(
+                    By.CLASS_NAME, "pj-card.bh-pull-left")
 
-                if not ta_card_elements or ta_card_processed >= len(ta_card_elements):
-                    if ta_card_processed > 0:
-                        log(f"该标签页下的所有助教评价已完成，共处理 {ta_card_processed} 个助教")
-                        break  # 当前标签页处理完毕
-                    else:
-                        # 如果一个卡片都未处理（ta_card_processed == 0）并且多次重试后仍未找到
-                        if retry_count >= max_retries:
-                            log(f"尝试 {max_retries} 次后仍未找到助教卡片，并且之前未处理任何卡片。认为所有助教评价已完成或无助教。")
-                            log("程序将退出。")
-                            driver.quit()  # 在退出前关闭浏览器
-                            sys.exit(0)  # 正常退出程序
-                        log(
-                            f"未找到助教卡片，等待并重试... ({retry_count}/{max_retries})"
-                        )
-                        time.sleep(2)  # 等待页面可能的加载
-                        retry_count += 1  # 确保 retry_count 在 continue 前增加
-                        continue
+                if card_idx_in_tab >= len(current_ta_cards_on_page):
+                    log(f"❌ 严重错误：期望处理索引为 {card_idx_in_tab} 的助教卡片 (标签页 {tab_index + 1})，但刷新后页面上只有 {len(current_ta_cards_on_page)} 张。")
+                    return False  # 无法继续处理此标签页
 
-                log(
-                    f"找到 {len(ta_card_elements)} 个助教卡片元素，正在处理第 {ta_card_processed+1} 个")
+                current_ta_card_element = current_ta_cards_on_page[card_idx_in_tab]
 
-                # 打印所有卡片的文本内容，便于调试
-                for i, card in enumerate(ta_card_elements):
-                    try:
-                        if i == ta_card_processed:  # 只打印当前要处理的卡片
-                            log(f"卡片 {i+1} 内容: {card.text[:100]}")
-                    except:
-                        log(f"卡片 {i+1}: [无法获取文本]")
+                try:
+                    card_text_preview = current_ta_card_element.text.strip().replace(chr(10), ' ')[
+                        :100]
+                    log(f"  即将处理的助教卡片 (第 {card_idx_in_tab + 1} 张于标签页 {tab_index+1}) 文本预览: '{card_text_preview}...'")
+                except StaleElementReferenceException:
+                    log(f"⚠️ 警告: 在尝试获取第 {card_idx_in_tab + 1} 张助教卡片的文本时发生StaleElementReferenceException。这非常意外。")
+                except Exception as e_text:
+                    log(f"  (获取第 {card_idx_in_tab + 1} 张助教卡片文本预览时发生错误: {e_text})")
 
-                if ta_card_processed < len(ta_card_elements):
-                    if self.process_ta_card(ta_card_elements[ta_card_processed], ta_card_processed):
-                        # 成功处理一个助教卡片
-                        ta_card_processed += 1
-                        retry_count = 0  # 成功处理后重置重试计数
-                    else:
-                        # 处理失败，递增计数器，但要有一定次数的重试
-                        log(f"处理第 {ta_card_processed+1} 个助教卡片失败，将重试")
-                        retry_count += 1
-                        if retry_count >= max_retries:
-                            log(f"尝试 {max_retries} 次后仍未成功处理，跳过此卡片")
-                            ta_card_processed += 1  # 跳过当前卡片
-                            retry_count = 0  # 重置重试计数
-                        time.sleep(2)  # 等待一下再处理
+                # 调用 process_ta_card 处理单个助教卡片
+                if not self.process_ta_card(current_ta_card_element, card_idx_in_tab):
+                    log(f"处理标签页 {tab_index + 1} 中第 {card_idx_in_tab + 1} 位助教的评价表单失败。")
+                    # 当前逻辑：记录日志并继续尝试下一位助教
 
+                log(f"--- 标签页 {tab_index + 1} 中第 {card_idx_in_tab + 1} 位助教处理流程结束。等待列表页稳定。 ---")
+                # 关键：在处理完一个助教后，等待页面回到列表状态并稳定
+                time.sleep(2)  # 可以根据实际情况调整或替换为更明确的等待条件
+
+            log(f"✅ 所有已检测到的助教 (标签页 {tab_index + 1}) 均已尝试处理完毕。")
             return True
 
         except Exception as tab_err:
@@ -637,21 +699,50 @@ class TAEvaluator(Evaluator):
             # 点击底部元素
             self.click_with_js(
                 ta_card_bottom, f"第 {card_index+1} 个助教卡片的底部元素", 1)
-            time.sleep(1)  # 确保评价页面加载完成
+
+            # 等待评价选项容器可见
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.visibility_of_element_located(
+                        (By.CLASS_NAME, "sc-panel-thingNoImg-1-container.bh-mv-8.wjzb-card"))
+                )
+                log(f"✅ 至少一个评价选项容器对助教卡片 {card_index+1} 可见。")
+            except TimeoutException:
+                # 如果评价选项容器未出现，则尝试通过链接文本查找
+                try:
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located(
+                            (By.LINK_TEXT, "很好"))
+                    )
+                    log(f"✅ 通过链接文本找到评价选项容器对助教卡片 {card_index+1} 可见。")
+                except TimeoutException:
+                    log(f"❌ 等待评价选项容器对助教卡片 {card_index+1} 可见超时。")
+                    return False  # 如果容器未出现，则此卡片处理失败
+
+            time.sleep(1)  # 增加延时，确保所有评价项加载
 
             # 处理评价选项
             ta_judge_indexes = self.driver.find_elements(
                 By.CLASS_NAME, "sc-panel-thingNoImg-1-container.bh-mv-8.wjzb-card")
 
+            if not ta_judge_indexes:
+                log(f"⚠️ 等待后，仍未找到助教卡片 {card_index+1} 的评价选项元素 ('sc-panel-thingNoImg-1-container.bh-mv-8.wjzb-card')。表单可能为空或页面结构已更改。")
+                return False  # 如果未找到评价项，则无法继续
+
             # 先循环点击所有评价指标（除最后一个外）
-            self.click_evaluation_options(ta_judge_indexes, "助教")
+            evaluation_options_processed = self.click_evaluation_options(
+                ta_judge_indexes, "助教")
+
+            if not evaluation_options_processed:
+                log(f"处理助教卡片 {card_index+1} 的评价选项失败 (例如，没有可点击的项目，或在 click_evaluation_options 中发生错误)。")
+                return False  # 如果评价选项处理失败，则此卡片处理失败
 
             # 所有评价指标处理完毕后，提交表单
             log("所有助教评价指标已处理完毕，准备提交表单")
 
             if self.find_and_click_submit_button("助教"):
                 # 处理确认弹窗 - 尝试多种方法
-                self.click_confirm_button(3)
+                self.click_confirm_button(4)
                 # 增加等待时间，确保确认操作完成并返回到列表页
                 time.sleep(1)
                 return True
